@@ -1,4 +1,5 @@
 import pandas as pd
+from datetime import datetime
 
 def read_file_parquet(filepath):
     # Leggi il file Parquet
@@ -36,6 +37,41 @@ def sort_chronologically_by_timestamp(dataframe):
     print(sorted_dataframe.head())
     return sorted_dataframe
 
+
+# Funzione per calcolare l'età, rimuovere la colonna data di nascita e posizionare la colonna età
+def calcola_eta_e_posiziona(df):
+    # Funzione per convertire data di nascita in età
+    def calcola_eta(data_nascita):
+        today = datetime.today()
+        # Conversione della data di nascita in formato datetime
+        data_nascita = pd.to_datetime(data_nascita, format='%Y-%m-%d', errors='coerce')
+        # Calcolo dell'età solo se la data di nascita è valida
+        if pd.isnull(data_nascita):
+            return None
+        return today.year - data_nascita.year - ((today.month, today.day) < (data_nascita.month, data_nascita.day))
+
+    # Trovare l'indice della colonna 'data_nascita' per reinserire 'età' nella stessa posizione
+    index_col = df.columns.get_loc('data_nascita')
+
+    # Applicare la funzione per calcolare l'età a ogni paziente
+    df['età'] = df['data_nascita'].apply(calcola_eta)
+
+    # Rimuovere la colonna 'data_nascita'
+    df.drop(columns=['data_nascita'], inplace=True)
+
+    # Spostare la colonna 'età' nella posizione originale di 'data_nascita'
+    cols = df.columns.tolist()
+    cols.insert(index_col, cols.pop(cols.index('età')))
+    df = df[cols]
+
+    # Visualizzare i risultati (prime 5 righe)
+    print(df[['id_paziente', 'età']].head())
+    
+    return df
+
+
+
+
 if __name__ == "__main__":
     filepath = "./challenge_campus_biomedico_2024.parquet"
     
@@ -50,3 +86,13 @@ if __name__ == "__main__":
     
     # Ordina il DataFrame cronologicamente
     sorted_df = sort_chronologically_by_timestamp(df)
+
+    """ # Applicare la funzione per calcolare l'età a ogni paziente
+    df['età'] = df['data_nascita'].apply(calcola_eta)
+
+    # Visualizza il risultato
+    df[['id_paziente', 'data_nascita', 'età']].head()  """
+
+    df = calcola_eta_e_posiziona(sorted_df)
+    print(df.head())
+
