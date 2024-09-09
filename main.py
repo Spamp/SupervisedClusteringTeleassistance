@@ -87,12 +87,6 @@ if __name__ == "__main__":
     # Ordina il DataFrame cronologicamente
     sorted_df = sort_chronologically_by_timestamp(df)
 
-    """ # Applicare la funzione per calcolare l'età a ogni paziente
-    df['età'] = df['data_nascita'].apply(calcola_eta)
-
-    # Visualizza il risultato
-    df[['id_paziente', 'data_nascita', 'età']].head()  """
-
+    # Calcola l'età, rimuovi la colonna 'data_nascita' e posiziona la colonna 'età'
     df = calcola_eta_e_posiziona(sorted_df)
-    print(df.head())
 
