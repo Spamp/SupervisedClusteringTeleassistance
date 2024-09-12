@@ -24,6 +24,6 @@ We then analyzed the number of sub-keys within the features, from which we can s
 
 We counted the number of healthcare providers, which is just under 40,000. This means that, on average, each doctor had 12 patients. We believe that this data is not useful for calculating the increase in teleconsultations, so we will not use it.
 
-Additionally, we want to create a new feature, called "waiting time," based on the two columns “booking date” and “service delivery date.” This could be useful to understand whether this parameter affects the increase in teleconsultations.
+Additionally, we want to create a new feature, called "tempo di attesa," based on the two columns “data di prenotazione” and “data di erogazione del servizio.” This could be useful to understand whether this parameter affects the increase in teleconsultations.
 
 This phase of data exploration has been extremely helpful in understanding the nature of the data and identifying which features might be more useful, as well as in cleaning up any messy data.
