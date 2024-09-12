@@ -39,37 +39,6 @@ def sort_chronologically_by_timestamp(dataframe):
     return sorted_dataframe
 
 
-# Funzione per calcolare l'età, rimuovere la colonna data di nascita e posizionare la colonna età
-def calcola_eta_e_posiziona(df):
-    # Funzione per convertire data di nascita in età
-    def calcola_eta(data_nascita):
-        today = datetime.today()
-        # Conversione della data di nascita in formato datetime
-        data_nascita = pd.to_datetime(data_nascita, format='%Y-%m-%d', errors='coerce')
-        # Calcolo dell'età solo se la data di nascita è valida
-        if pd.isnull(data_nascita):
-            return None
-        return today.year - data_nascita.year - ((today.month, today.day) < (data_nascita.month, data_nascita.day))
-
-    # Trovare l'indice della colonna 'data_nascita' per reinserire 'età' nella stessa posizione
-    index_col = df.columns.get_loc('data_nascita')
-
-    # Applicare la funzione per calcolare l'età a ogni paziente
-    df['età'] = df['data_nascita'].apply(calcola_eta)
-
-    # Rimuovere la colonna 'data_nascita'
-    df.drop(columns=['data_nascita'], inplace=True)
-
-    # Spostare la colonna 'età' nella posizione originale di 'data_nascita'
-    cols = df.columns.tolist()
-    cols.insert(index_col, cols.pop(cols.index('età')))
-    df = df[cols]
-
-    # Visualizzare i risultati (prime 5 righe)
-    print(df[['id_paziente', 'età']].head())
-    
-    return df
-
 # Funzione per visualizzare chiavi e numero di elementi per ogni chiave
 def visualizza_dizionario_chiavi(dizionario, nome_dizionario, limite=10):
     print(f"Visualizzazione del dizionario {nome_dizionario} (limite {limite} chiavi):")
@@ -197,6 +166,91 @@ def conta_asl_differenti(df):
     print(f"Numero di record con ASL di residenza diversa da quella di erogazione: {record_differenti}")
     return record_differenti
 
+
+# Funzione per identificare i valori problematici nelle colonne 'data_nascita' e 'data_erogazione'
+def esplora_formati_data(df):
+    # Identifica i valori unici presenti in 'data_nascita' e 'data_erogazione'
+    formati_data_nascita = df['data_nascita'].unique()
+    formati_data_erogazione = df['data_erogazione'].unique()
+
+    return df
+
+# Funzione per verificare quali valori non possono essere convertiti in datetime
+def verifica_date_non_convertibili(df):
+    # Prova a convertire le date in datetime
+    df['data_nascita'] = pd.to_datetime(df['data_nascita'], errors='coerce')
+    df['data_erogazione'] = pd.to_datetime(df['data_erogazione'], errors='coerce')
+
+    # Trova i valori che non possono essere convertiti (NaT)
+    date_nascita_non_convertibili = df[df['data_nascita'].isna()]
+    date_erogazione_non_convertibili = df[df['data_erogazione'].isna()]
+
+    return df
+
+
+# Funzione principale per esplorare e diagnosticare le date
+def diagnostica_date(df):
+    # Esplora i formati unici nelle colonne 'data_nascita' e 'data_erogazione'
+    df = esplora_formati_data(df)
+
+    # Verifica quali valori non possono essere convertiti in datetime
+    df = verifica_date_non_convertibili(df)
+
+    return df
+
+
+# Funzione per gestire il formato della colonna 'data_erogazione' mantenendo l'orario
+def gestisci_data_erogazione(df):
+    # Converti la colonna 'data_erogazione' in datetime, mantenendo l'ora e il fuso orario
+    df['data_erogazione'] = pd.to_datetime(df['data_erogazione'], errors='coerce')
+
+    return df
+
+
+# Funzione principale per calcolare l'età mantenendo l'orario in 'data_erogazione'
+def calcola_eta_e_posiziona_vettorizzato(df):
+    # Gestisci il formato della colonna 'data_erogazione' mantenendo l'orario
+    df = gestisci_data_erogazione(df)
+
+    # Converti 'data_nascita' in datetime
+    df['data_nascita'] = pd.to_datetime(df['data_nascita'], errors='coerce')
+
+    # Verifica se ci sono ancora valori NaT dopo la conversione
+    date_nascita_non_convertibili = df[df['data_nascita'].isna()]
+    if not date_nascita_non_convertibili.empty:
+        print("Valori non convertibili in 'data_nascita':")
+        print(date_nascita_non_convertibili[['id_paziente', 'data_nascita']])
+
+    # Rimuovere le righe con valori NaT in 'data_nascita' o 'data_erogazione'
+    df = df.dropna(subset=['data_nascita', 'data_erogazione'])
+
+    # Calcola l'età basandosi solo sulla parte di data (ignorando l'ora e il fuso orario)
+    df['età'] = df['data_erogazione'].dt.year - df['data_nascita'].dt.year
+
+    # Aggiusta l'età se il compleanno non è ancora passato
+    compleanno_non_passato = (df['data_erogazione'].dt.month < df['data_nascita'].dt.month) | \
+                             ((df['data_erogazione'].dt.month == df['data_nascita'].dt.month) & 
+                              (df['data_erogazione'].dt.day < df['data_nascita'].dt.day))
+
+    df.loc[compleanno_non_passato, 'età'] -= 1
+
+    # Rimuovere la colonna 'data_nascita'
+    df.drop(columns=['data_nascita'], inplace=True)
+
+    # Spostare la colonna 'età' nella posizione originale di 'data_nascita'
+    index_col = df.columns.get_loc('età')
+    cols = df.columns.tolist()
+    cols.insert(index_col, cols.pop(cols.index('età')))
+    df = df[cols]
+
+    # Visualizzare i risultati (prime 5 righe)
+    print(df[['id_paziente', 'data_erogazione', 'età']].head())
+
+    return df
+
+
+
+
 if __name__ == "__main__":
     filepath = "./challenge_campus_biomedico_2024.parquet"
     
@@ -258,8 +312,11 @@ if __name__ == "__main__":
     # Ordina il DataFrame cronologicamente
     sorted_df = sort_chronologically_by_timestamp(df)
 
-
-
     # Calcola l'età, rimuovi la colonna 'data_nascita' e posiziona la colonna 'età'
-    #df = calcola_eta_e_posiziona(sorted_df)
+    df_diagnosticato = diagnostica_date(df)
+
+    # Calcola l'età mantenendo l'orario in 'data_erogazione'
+    df_eta = calcola_eta_e_posiziona_vettorizzato(df_diagnosticato)
+
+
 
