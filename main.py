@@ -175,6 +175,7 @@ def esplora_formati_data(df):
 
     return df
 
+
 # Funzione per verificare quali valori non possono essere convertiti in datetime
 def verifica_date_non_convertibili(df):
     # Prova a convertire le date in datetime
@@ -229,7 +230,7 @@ def calcola_eta_e_posiziona_vettorizzato(df):
 
     # Aggiusta l'età se il compleanno non è ancora passato
     compleanno_non_passato = (df['data_erogazione'].dt.month < df['data_nascita'].dt.month) | \
-                             ((df['data_erogazione'].dt.month == df['data_nascita'].dt.month) & 
+                             ((df['data_erogazione'].dt.month == df['data_nascita'].dt.month) &
                               (df['data_erogazione'].dt.day < df['data_nascita'].dt.day))
 
     df.loc[compleanno_non_passato, 'età'] -= 1
@@ -248,6 +249,32 @@ def calcola_eta_e_posiziona_vettorizzato(df):
 
     return df
 
+
+# Funzione per calcolare la durata dell'assistenza, effettuare le correzioni e pulire il dataset
+def calcola_e_correggi_durata_assistenza(df):
+    # Converti 'ora_inizio_erogazione' e 'ora_fine_erogazione' in datetime (se non lo sono già)
+    df['ora_inizio_erogazione'] = pd.to_datetime(df['ora_inizio_erogazione'], errors='coerce')
+    df['ora_fine_erogazione'] = pd.to_datetime(df['ora_fine_erogazione'], errors='coerce')
+
+    # Calcola la durata in ore solo per i record validi
+    df['durata_assistenza'] = (df['ora_fine_erogazione'] - df['ora_inizio_erogazione']).dt.total_seconds() / 3600
+
+    # Imposta 'durata_assistenza' a 0 per i record con disdetta (quando 'data_disdetta' non è NaN)
+    df.loc[~df['data_disdetta'].isna() & (df['ora_inizio_erogazione'].isna() | df['ora_fine_erogazione'].isna()), 'durata_assistenza'] = 0
+
+    # Rimuovi i record in cui 'durata_assistenza' è NaN (questo include i record con tutte le colonne NaN)
+    df = df.dropna(subset=['durata_assistenza'])
+
+    # Elimina le colonne 'ora_inizio_erogazione' e 'ora_fine_erogazione'
+    df = df.drop(columns=['ora_inizio_erogazione', 'ora_fine_erogazione'])
+
+    # Conta quanti valori NaN sono presenti in 'durata_assistenza' (dovrebbe essere 0 dopo la pulizia)
+    nan_in_durata = df['durata_assistenza'].isna().sum()
+
+    # Stampa il numero di valori NaN nella colonna 'durata_assistenza'
+    print(f"Numero di valori NaN nella colonna 'durata_assistenza' dopo la pulizia: {nan_in_durata}")
+    
+    return df
 
 
 
@@ -319,4 +346,8 @@ if __name__ == "__main__":
     df_eta = calcola_eta_e_posiziona_vettorizzato(df_diagnosticato)
 
 
+    # Calcola la durata dell'assistenza e gestisci i casi particolari
+    df = calcola_e_correggi_durata_assistenza(df_eta)
 
+    # Mostra i primi risultati del DataFrame
+    print(df.head())
