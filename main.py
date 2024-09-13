@@ -276,6 +276,14 @@ def calcola_e_correggi_durata_assistenza(df):
     
     return df
 
+# funzione per creare un dizionario con le regioni come chiavi, e i comuni di residenza come valori
+def crea_dizionario_comuni_per_regione(df):
+    dizionario_comuni_per_regione = {}
+    for regione in df['regione_residenza'].unique():
+        comuni = df.loc[df['regione_residenza'] == regione, 'comune_residenza'].unique()
+        dizionario_comuni_per_regione[regione] = comuni
+    return dizionario_comuni_per_regione
+
 
 
 if __name__ == "__main__":
@@ -330,12 +338,16 @@ if __name__ == "__main__":
      # Visualizza un campione delle ASL residenza e erogazione
     visualizza_dizionario_chiavi(mappatura_c_to_n['asl_residenza'], 'asl_residenza')
     visualizza_dizionario_chiavi(mappatura_c_to_n['asl_erogazione'], 'asl_erogazione')
+    
 
     visualizza_sub_chiavi(mappatura_c_to_n)
     
     # Controllo dei record con ASL di residenza diversa da quella di erogazione
     conta_asl_differenti(df)
     
+    dict_regioni_comuni = crea_dizionario_comuni_per_regione(df)
+    print(dict_regioni_comuni)
+
     # Ordina il DataFrame cronologicamente
     sorted_df = sort_chronologically_by_timestamp(df)
 
@@ -351,3 +363,4 @@ if __name__ == "__main__":
 
     # Mostra i primi risultati del DataFrame
     print(df.head())
+    
