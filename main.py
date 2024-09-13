@@ -346,7 +346,7 @@ if __name__ == "__main__":
     conta_asl_differenti(df)
     
     dict_regioni_comuni = crea_dizionario_comuni_per_regione(df)
-    print(dict_regioni_comuni)
+    #print(dict_regioni_comuni)
 
     # Ordina il DataFrame cronologicamente
     sorted_df = sort_chronologically_by_timestamp(df)
