@@ -1,5 +1,6 @@
 import pandas as pd
 from datetime import datetime
+import hashlib
 
 def read_file_parquet(filepath):
     # Leggi il file Parquet
@@ -284,13 +285,28 @@ def crea_dizionario_comuni_per_regione(df):
         dizionario_comuni_per_regione[regione] = comuni
     return dizionario_comuni_per_regione
 
+def reinsert_missing_codes(df):
+    # Reinsert 'NA' for Napoli in 'codice_provincia_residenza' and 'codice_provincia_erogazione'
+    df.loc[df['provincia_residenza'] == 'Napoli', 'codice_provincia_residenza'] = 'NA'
+    df.loc[df['provincia_erogazione'] == 'Napoli', 'codice_provincia_erogazione'] = 'NA'
 
+    # Reinsert 'None' for codice 1168 in 'comune_residenza'
+    df.loc[df['comune_residenza'].isnull(), 'comune_residenza'] = 'Comune di None'
+
+    return df
+
+def unify_codes(df):
+    #function which unify different structure codes reffering to the same struture, in one single code
+    df['codice_struttura_erogazione_stripped'] = df['codice_struttura_erogazione'].astype(str).str.split('.').str[0]
+    return df
 
 if __name__ == "__main__":
     filepath = "./challenge_campus_biomedico_2024.parquet"
     
     # Leggi il file Parquet
     df = read_file_parquet(filepath)
+
+    reinsert_missing_codes(df)
     
     # Conta i valori nulli e NaN
     count_nulls(df)
@@ -303,6 +319,8 @@ if __name__ == "__main__":
     
     # Controllo per Napoli e aggiunta del codice NA se necessario
     df = controllo_napoli(df)
+
+    df = unify_codes(df)
 
     coppie_colonne = [
     ('regione_residenza', 'codice_regione_residenza'),
@@ -345,11 +363,30 @@ if __name__ == "__main__":
     # Controllo dei record con ASL di residenza diversa da quella di erogazione
     conta_asl_differenti(df)
     
-    dict_regioni_comuni = crea_dizionario_comuni_per_regione(df)
-    #print(dict_regioni_comuni)
-
+    
     # Ordina il DataFrame cronologicamente
     sorted_df = sort_chronologically_by_timestamp(df)
+
+    '''columns_to_hash = [
+    'codice_asl_residenza', 'codice_asl_erogazione', 
+    'codice_descrizione_attivita', 'struttura_erogazione', 
+    'codice_tipologia_struttura_erogazione', 'codice_tipologia_professionista_sanitario'
+    ]
+
+    n_bits_dict = {
+        'asl_residenza': 7,  
+        'asl_erogazione': 7,  
+        'descrizione_attivita': 7,  
+        'struttura_erogazione': 10,  
+        'tipologia_struttura_erogazione': 4,  
+        'tipologia_professionista_sanitario': 4  
+    }
+
+    # Apply optimized hashing and get feature mappings
+    df_hashed, feature_mappings = optimized_apply_hashing(df, n_bits_dict)'''
+
+    # Now you have df_hashed with the hash columns and feature_mappings containing the hash dictionaries.
+
 
     # Calcola l'età, rimuovi la colonna 'data_nascita' e posiziona la colonna 'età'
     df_diagnosticato = diagnostica_date(df)
