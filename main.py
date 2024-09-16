@@ -54,46 +54,6 @@ def visualizza_dizionario_chiavi(dizionario, nome_dizionario, limite=10):
             break
     print(f"Numero totale di chiavi in {nome_dizionario}: {len(dizionario)}\n")
 
-'''def mappa_colonne(df, coppie_colonne):
-    mappatura_codice_to_nome = {}
-    mappatura_nome_to_codice = defaultdict(list)
-    valori_nulli = set()  # Set per mantenere i valori univoci
-    nomi_multipli = {}  # Per tracciare nomi associati a più di un codice
-    
-    # Cicla su ogni coppia (descrittiva, codice)
-    for nome_colonna, codice_colonna in coppie_colonne:
-        # Dobbiamo mappare codice -> nome e nome -> codice
-        mappatura_c_to_n = {}
-        
-        # Iteriamo su ogni riga delle due colonne
-        for nome, codice in zip(df[nome_colonna], df[codice_colonna]):
-            if pd.isnull(nome) or pd.isnull(codice):
-                # Aggiungi il valore nella lista dei valori nulli
-                if pd.notnull(nome):
-                    valori_nulli.add(f"Nella colonna '{codice_colonna}', il valore '{nome}' non ha codice.")
-                if pd.notnull(codice):
-                    valori_nulli.add(f"Nella colonna '{nome_colonna}', il codice '{codice}' non ha nome.")
-            else:
-                # Gestione mappatura codice -> nome
-                if codice not in mappatura_c_to_n:
-                    mappatura_c_to_n[codice] = nome
-                elif mappatura_c_to_n[codice] != nome:
-                    raise ValueError(f"Conflitto di mappatura: il codice {codice} "
-                                     f"è associato a '{mappatura_c_to_n[codice]}' e a '{nome}'")
-                
-                # Gestione mappatura nome -> codice (possiamo avere più codici per un nome)
-                if codice not in mappatura_nome_to_codice[nome]:
-                    mappatura_nome_to_codice[nome].append(codice)
-                    # Traccia nomi associati a più codici
-                    if len(mappatura_nome_to_codice[nome]) > 1:
-                        nomi_multipli[nome] = mappatura_nome_to_codice[nome]
-        
-        # Aggiungiamo le mappe della colonna corrente ai risultati completi
-        mappatura_codice_to_nome[nome_colonna] = mappatura_c_to_n
-    
-    # Convertiamo la lista dei valori nulli in una lista univoca
-    return mappatura_codice_to_nome, mappatura_nome_to_codice, list(valori_nulli), nomi_multipli'''
-
 # Modifica della funzione per mappare le colonne senza l'utilizzo di defaultdict
 def mappa_colonne(df, coppie_colonne):
     mappatura_codice_to_nome = {}
@@ -142,7 +102,7 @@ def controllo_comune_residenza(df):
 
 # Funzione per verificare i codici utilizzati per Napoli e aggiungere "NA" se necessario
 def controllo_napoli(df):
-    codici_napoli = df.loc[df['comune_residenza'] == 'Napoli', 'codice_comune_residenza'].unique()
+    codici_napoli = df.loc[df['provincia_residenza'] == 'Napoli', 'codice_provincia_residenza'].unique()
     print(f"Codici utilizzati per Napoli: {codici_napoli}")
 
     # Aggiungiamo 'NA' se non è presente
@@ -297,7 +257,7 @@ def reinsert_missing_codes(df):
 
 def unify_codes(df):
     #function which unify different structure codes reffering to the same struture, in one single code
-    df['codice_struttura_erogazione_stripped'] = df['codice_struttura_erogazione'].astype(str).str.split('.').str[0]
+    df['codice_struttura_erogazione'] = df['codice_struttura_erogazione'].astype(str).str.split('.').str[0]
     return df
 
 if __name__ == "__main__":
@@ -322,6 +282,8 @@ if __name__ == "__main__":
 
     df = unify_codes(df)
 
+    print(df)
+
     coppie_colonne = [
     ('regione_residenza', 'codice_regione_residenza'),
     ('asl_residenza', 'codice_asl_residenza'),
@@ -339,6 +301,8 @@ if __name__ == "__main__":
 
     # Chiamata alla funzione
     mappatura_c_to_n, mappatura_n_to_c, valori_nulli, nomi_multipli = mappa_colonne(df, coppie_colonne)
+    #create dict to map the cities for their regions
+    dict_regioni=crea_dizionario_comuni_per_regione(df)
 
     # Output delle mappature e dei valori nulli
     #print("Mappatura Codice -> Nome:", mappatura_c_to_n)
@@ -366,27 +330,6 @@ if __name__ == "__main__":
     
     # Ordina il DataFrame cronologicamente
     sorted_df = sort_chronologically_by_timestamp(df)
-
-    '''columns_to_hash = [
-    'codice_asl_residenza', 'codice_asl_erogazione', 
-    'codice_descrizione_attivita', 'struttura_erogazione', 
-    'codice_tipologia_struttura_erogazione', 'codice_tipologia_professionista_sanitario'
-    ]
-
-    n_bits_dict = {
-        'asl_residenza': 7,  
-        'asl_erogazione': 7,  
-        'descrizione_attivita': 7,  
-        'struttura_erogazione': 10,  
-        'tipologia_struttura_erogazione': 4,  
-        'tipologia_professionista_sanitario': 4  
-    }
-
-    # Apply optimized hashing and get feature mappings
-    df_hashed, feature_mappings = optimized_apply_hashing(df, n_bits_dict)'''
-
-    # Now you have df_hashed with the hash columns and feature_mappings containing the hash dictionaries.
-
 
     # Calcola l'età, rimuovi la colonna 'data_nascita' e posiziona la colonna 'età'
     df_diagnosticato = diagnostica_date(df)
