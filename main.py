@@ -260,6 +260,24 @@ def unify_codes(df):
     df['codice_struttura_erogazione'] = df['codice_struttura_erogazione'].astype(str).str.split('.').str[0]
     return df
 
+def get_unique_province_for_presidio_ospedaliero(df):
+    # Filter the dataframe where 'struttura_erogazione' is 'PRESIDIO OSPEDALIERO UNIFICATO'
+    filtered_df = df[df['struttura_erogazione'] == 'PRESIDIO OSPEDALIERO UNIFICATO']
+    
+    # Group by 'codice_struttura_erogazione' and get unique 'provincia_erogazione' for each code
+    province_per_codice = filtered_df.groupby('codice_struttura_erogazione')['provincia_erogazione'].unique()
+    
+    # Convert the result to a dictionary for easier reading
+    result = province_per_codice.to_dict()
+    
+    return result
+
+def modify_structure_name(df):
+    #function which modify the name of the structure with same but different codes, add the provice they belong to
+    df.loc[df['codice_struttura_erogazione'] == '70001', 'struttura_erogazione'] = 'PRESIDIO OSPEDALIERO UNIFICATO (Imperia)'
+    df.loc[df['codice_struttura_erogazione'] == '100803', 'struttura_erogazione'] = 'PRESIDIO OSPEDALIERO UNIFICATO (Perugia)'
+    return df
+
 if __name__ == "__main__":
     filepath = "./challenge_campus_biomedico_2024.parquet"
     
@@ -282,7 +300,10 @@ if __name__ == "__main__":
 
     df = unify_codes(df)
 
-    print(df)
+    unique_provinces = get_unique_province_for_presidio_ospedaliero(df)
+    print(unique_provinces)
+
+    df= modify_structure_name(df)
 
     coppie_colonne = [
     ('regione_residenza', 'codice_regione_residenza'),
