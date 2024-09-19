@@ -278,13 +278,47 @@ def modify_structure_name(df):
     df.loc[df['codice_struttura_erogazione'] == '100803', 'struttura_erogazione'] = 'PRESIDIO OSPEDALIERO UNIFICATO (Perugia)'
     return df
 
+# Funzione per calcolare il tempo di attesa e convertire le date
+def calcola_attesa_assistenza(df):
+    # Converte le colonne 'data_contatto' e 'data_erogazione' in formato datetime mantenendo il fuso orario
+    df['data_contatto'] = pd.to_datetime(df['data_contatto'], utc=True, errors='coerce')
+    df['data_erogazione'] = pd.to_datetime(df['data_erogazione'], utc=True, errors='coerce')
+
+    # Calcola il tempo di attesa in giorni tra 'data_erogazione' e 'data_contatto' e arrotonda i risultati
+    df['attesa_assistenza'] = (df['data_erogazione'] - df['data_contatto']).dt.total_seconds() / (60 * 60 * 24)
+
+    # Arrotonda i valori di attesa_assistenza a giorni interi
+    df['attesa_assistenza'] = df['attesa_assistenza'].round(0)
+
+    # Visualizza i risultati arrotondati
+    print(df[['data_contatto', 'data_erogazione', 'attesa_assistenza']].head())
+
+    return df
+
+# Funzione per convertire la colonna 'sesso' in valori booleani e posizionare 'sesso_bool' accanto a 'sesso'
+def converti_sesso_in_booleano(df):
+    # Converte 'sesso' in minuscolo e sostituisce direttamente 'male' con 1 e 'female' con 0
+    df['sesso_bool'] = df['sesso'].str.lower().replace({'male': 1, 'female': 0})
+
+    # Trova l'indice della colonna 'sesso'
+    index_sesso = df.columns.get_loc('sesso')
+
+    # Sposta la colonna 'sesso_bool' accanto a 'sesso'
+    cols = df.columns.tolist()
+    cols.insert(index_sesso + 1, cols.pop(cols.index('sesso_bool')))
+    df = df[cols]
+
+    # Mostra i primi record per verifica
+    print(df[['sesso', 'sesso_bool']].head())
+
+    return df
+
 if __name__ == "__main__":
     filepath = "./challenge_campus_biomedico_2024.parquet"
     
     # Leggi il file Parquet
     df = read_file_parquet(filepath)
 
-    reinsert_missing_codes(df)
     
     # Conta i valori nulli e NaN
     count_nulls(df)
@@ -297,6 +331,8 @@ if __name__ == "__main__":
     
     # Controllo per Napoli e aggiunta del codice NA se necessario
     df = controllo_napoli(df)
+    #funcrtions which cleanse features with codes
+    reinsert_missing_codes(df)
 
     df = unify_codes(df)
 
@@ -320,14 +356,12 @@ if __name__ == "__main__":
     ]
 
 
-    # Chiamata alla funzione
+    
     mappatura_c_to_n, mappatura_n_to_c, valori_nulli, nomi_multipli = mappa_colonne(df, coppie_colonne)
     #create dict to map the cities for their regions
     dict_regioni=crea_dizionario_comuni_per_regione(df)
 
     # Output delle mappature e dei valori nulli
-    #print("Mappatura Codice -> Nome:", mappatura_c_to_n)
-    #print("Mappatura Nome -> Codice:", mappatura_n_to_c)
     print("Valori nulli:", valori_nulli)
 
     # Messaggio sui nomi associati a più codici
@@ -350,18 +384,24 @@ if __name__ == "__main__":
     
     
     # Ordina il DataFrame cronologicamente
-    sorted_df = sort_chronologically_by_timestamp(df)
+    df = sort_chronologically_by_timestamp(df)
 
     # Calcola l'età, rimuovi la colonna 'data_nascita' e posiziona la colonna 'età'
-    df_diagnosticato = diagnostica_date(df)
+    df = diagnostica_date(df)
 
     # Calcola l'età mantenendo l'orario in 'data_erogazione'
-    df_eta = calcola_eta_e_posiziona_vettorizzato(df_diagnosticato)
+    df = calcola_eta_e_posiziona_vettorizzato(df)
 
 
     # Calcola la durata dell'assistenza e gestisci i casi particolari
-    df = calcola_e_correggi_durata_assistenza(df_eta)
+    df = calcola_e_correggi_durata_assistenza(df)
+
+    df= converti_sesso_in_booleano(df)
+
+    df= calcola_attesa_assistenza(df)
 
     # Mostra i primi risultati del DataFrame
     print(df.head())
+
+    print(df.columns)
     
