@@ -1,6 +1,5 @@
 import pandas as pd
-from datetime import datetime
-import hashlib
+import json
 
 def read_file_parquet(filepath):
     # Leggi il file Parquet
@@ -35,8 +34,6 @@ def sort_chronologically_by_timestamp(dataframe):
     # Ordina il DataFrame
     sorted_dataframe = dataframe.sort_values(by='ora_inizio_erogazione')
     print("Ecco le prime righe del DataFrame ordinato cronologicamente:")
-    print(sorted_dataframe.head())
-    print(sorted_dataframe.tail())
     return sorted_dataframe
 
 
@@ -91,28 +88,6 @@ def mappa_colonne(df, coppie_colonne):
     
     return mappatura_codice_to_nome, mappatura_nome_to_codice, list(valori_nulli), nomi_multipli
 
-
-# Funzione per controllare se c'è un comune corrispondente al codice 1168
-def controllo_comune_residenza(df):
-    comune = df.loc[df['codice_comune_residenza'] == 1168, 'comune_residenza'].unique()
-    if len(comune) > 0:
-        print(f"Il codice 1168 corrisponde al comune: {comune[0]}")
-    else:
-        print("Nessun comune trovato per il codice 1168.")
-
-# Funzione per verificare i codici utilizzati per Napoli e aggiungere "NA" se necessario
-def controllo_napoli(df):
-    codici_napoli = df.loc[df['provincia_residenza'] == 'Napoli', 'codice_provincia_residenza'].unique()
-    print(f"Codici utilizzati per Napoli: {codici_napoli}")
-
-    # Aggiungiamo 'NA' se non è presente
-    if 'NA' not in codici_napoli:
-        print("Il codice 'NA' non è presente per Napoli, lo aggiungiamo.")
-        # Aggiungere NA al DataFrame (simulazione)
-        df.loc[df['comune_residenza'] == 'Napoli', 'codice_comune_residenza'] = 'NA'
-    else:
-        print("Il codice 'NA' è già presente per Napoli.")
-    return df
 
 # Funzione per visualizzare il numero di sub-chiavi per tutte le macro chiavi
 def visualizza_sub_chiavi(dizionario_mappature):
@@ -313,24 +288,47 @@ def converti_sesso_in_booleano(df):
 
     return df
 
+# Carica il dizionario delle coordinate dal file JSON
+def load_coordinates(file_path):
+    try:
+        with open(file_path, 'r') as f:
+            return json.load(f)
+    except FileNotFoundError:
+        raise FileNotFoundError(f"File {file_path} not found")
+
+# Funzione vettorizzata per sostituire i nomi delle città con le coordinate
+def replace_city_columns_with_coordinates(df, city_columns, coordinates_dict):
+    # Verifica se tutte le colonne esistono nel DataFrame
+    for city_column in city_columns:
+        if city_column not in df.columns:
+            raise KeyError(f"The column '{city_column}' was not found in the DataFrame.")
+    
+    # Prepara la mappatura per latitudine e longitudine
+    lat_dict = {city: coord[0] for city, coord in coordinates_dict.items()}
+    lng_dict = {city: coord[1] for city, coord in coordinates_dict.items()}
+    
+    # Sostituisci i nomi delle città con le coordinate usando il metodo map vettorizzato
+    for city_column in city_columns:
+        df[city_column + '_lat'] = df[city_column].map(lat_dict)
+        df[city_column + '_lng'] = df[city_column].map(lng_dict)
+    
+    # Opzionalmente, puoi rimuovere le colonne originali delle città
+    #df.drop(columns=city_columns, inplace=True)
+    
+    return df
+
 if __name__ == "__main__":
     filepath = "./challenge_campus_biomedico_2024.parquet"
     
     # Leggi il file Parquet
     df = read_file_parquet(filepath)
 
-    
     # Conta i valori nulli e NaN
     count_nulls(df)
     
     # Controlla i duplicati nella colonna 'id_pazienti'
     check_duplicates(df)
 
-    # Controllo se il codice 1168 ha un comune associato
-    controllo_comune_residenza(df)
-    
-    # Controllo per Napoli e aggiunta del codice NA se necessario
-    df = controllo_napoli(df)
     #funcrtions which cleanse features with codes
     reinsert_missing_codes(df)
 
@@ -393,12 +391,25 @@ if __name__ == "__main__":
     df = calcola_eta_e_posiziona_vettorizzato(df)
 
 
+
     # Calcola la durata dell'assistenza e gestisci i casi particolari
     df = calcola_e_correggi_durata_assistenza(df)
 
     df= converti_sesso_in_booleano(df)
 
     df= calcola_attesa_assistenza(df)
+
+    coordinates_file = './coordinate_dataset.json'
+
+    # Carica il dizionario delle coordinate
+    coordinates_dict = load_coordinates(coordinates_file)
+
+    # Lista delle colonne che contengono i nomi delle città
+    city_columns = ['comune_residenza', 'comune_destinazione']  # Aggiungi tutte le colonne desiderate
+
+    # Sostituisci i nomi delle città con le coordinate nelle colonne specificate
+    df = replace_city_columns_with_coordinates(df, ['provincia_residenza','comune_residenza', 'provincia_erogazione'], coordinates_dict)
+
 
     # Mostra i primi risultati del DataFrame
     print(df.head())

@@ -115,7 +115,7 @@ def create_coordinate_dict(df, italy_geo_file, dizionario_file, output_file):
 dataset_file = './challenge_campus_biomedico_2024.parquet'  # Dataset path
 italy_geo_file = './italy_geo.json'  # Italy geo JSON file
 dizionario_file = './dizionario_coordinate.json'  # Coordinate dictionary
-output_file = './coordinate_vere.json'  # Output file for the final coordinates
+output_file = './coordinate_dataset.json'  # Output file for the final coordinates
 
 # Load dataset
 df = load_dataset(dataset_file)
