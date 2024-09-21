@@ -410,7 +410,16 @@ if __name__ == "__main__":
     # Sostituisci i nomi delle città con le coordinate nelle colonne specificate
     df = replace_city_columns_with_coordinates(df, ['provincia_residenza','comune_residenza', 'provincia_erogazione'], coordinates_dict)
 
+    selected_columns = [
+    'id_prenotazione', 'codice_asl_residenza', 'codice_descrizione_attivita',
+    'codice_asl_erogazione', 'codice_struttura_erogazione',
+    'codice_tipologia_struttura_erogazione', 'codice_tipologia_professionista_sanitario',
+    'data_erogazione', 'età', 'durata_assistenza', 'sesso_bool', 'attesa_assistenza',
+    'provincia_residenza_lat', 'provincia_residenza_lng', 'comune_residenza_lat',
+    'comune_residenza_lng', 'provincia_erogazione_lat', 'provincia_erogazione_lng'
+]
 
+    df = df[selected_columns]
     # Mostra i primi risultati del DataFrame
     print(df.head())
 
