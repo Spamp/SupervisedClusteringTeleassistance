@@ -317,6 +317,117 @@ def replace_city_columns_with_coordinates(df, city_columns, coordinates_dict):
     
     return df
 
+
+import numpy as np
+
+def crea_colonna_semestre(df):
+    # Converti 'data_erogazione' in datetime se non lo è già
+    df['data_erogazione'] = pd.to_datetime(df['data_erogazione'])
+    
+    # Estrarre l'anno
+    df['anno'] = df['data_erogazione'].dt.year
+    
+    # Creare il semestre usando np.where per il controllo delle condizioni
+    df['semestre'] = np.where(df['data_erogazione'].dt.month <= 6, 'S1', 'S2')
+    
+    # Combinare anno e semestre in una nuova colonna 'semestre'
+    df['semestre'] = df['anno'].astype(str) + '-' + df['semestre']
+    
+    # Visualizzare i primi risultati
+    print(df[['data_erogazione', 'anno', 'semestre']].head())
+    print(df[['data_erogazione', 'anno', 'semestre']].tail())
+    
+    return df
+
+# funzione che conta i valori NaN in una colonna specificata
+def conta_nan_colonna(df, colonna):
+    # Conta i valori NaN nella colonna specificata
+    nan_count = df[colonna].isna().sum()
+    
+    # Stampa il risultato
+    print(f"Numero di valori NaN nella colonna '{colonna}': {nan_count}")
+    
+    return nan_count
+
+# fuzione che conta i valori NaN in una colonna specificata e rimuove le righe con valori NaN
+def conta_e_rimuovi_nan_colonna(df, colonna, rimuovi=False):
+    # Conta i valori NaN nella colonna specificata
+    nan_count = df[colonna].isna().sum()
+    
+    # Stampa il risultato
+    print(f"Numero di valori NaN nella colonna '{colonna}': {nan_count}")
+    
+    # Se rimuovi=True, elimina le righe con valori NaN nella colonna specificata dall'intero DataFrame
+    if rimuovi:
+        df = df.dropna(subset=[colonna])
+        print(f"Le righe con valori NaN nella colonna '{colonna}' sono state rimosse.")
+        print(f"Numero di righe rimanenti nel DataFrame: {len(df)}")
+    
+    return df
+
+# Funzione per calcolare l'incremento percentuale delle teleassistenze per semestre
+def calcola_incremento_teleassistenze(df):
+    # Raggruppare per semestre
+    grouped = df.groupby('semestre').size().reset_index(name='num_teleassistenze')
+
+    # Calcolare l'incremento percentuale rispetto al semestre precedente
+    grouped['incremento'] = grouped['num_teleassistenze'].pct_change() * 100
+
+    # Riempiamo i valori NaN (per il primo semestre, non c'è incremento precedente) con 0
+    grouped['incremento'] = grouped['incremento'].fillna(0)
+
+    # Visualizza i risultati (prime righe)
+    print(grouped.head())
+    print(grouped.tail())
+
+    return grouped
+
+
+# Funzione per classificare l'incremento
+def classifica_incremento(incremento):
+    if incremento > 10:
+        return 'alto'
+    elif 5 < incremento <= 10:
+        return 'medio'
+    elif -5 <= incremento <= 5:
+        return 'costante'
+    else:
+        return 'basso'
+    
+
+# Funzione che classifica l'incremento per ogni semestre senza usare apply
+def classifica_incremento_per_semestre(df_grouped):
+    # Inizializziamo la colonna 'classificazione' come vuota
+    df_grouped['classificazione'] = 'basso'  # Assegniamo 'basso' come default
+
+    # Classifichiamo in modo vettoriale
+    df_grouped.loc[df_grouped['incremento'] > 10, 'classificazione'] = 'alto'
+    df_grouped.loc[(df_grouped['incremento'] > 5) & (df_grouped['incremento'] <= 10), 'classificazione'] = 'medio'
+    df_grouped.loc[(df_grouped['incremento'] >= -5) & (df_grouped['incremento'] <= 5), 'classificazione'] = 'costante'
+
+    # Visualizza i primi risultati per confermare
+    print(df_grouped[['semestre', 'num_teleassistenze', 'incremento', 'classificazione']].head())
+    print(df_grouped[['semestre', 'num_teleassistenze', 'incremento', 'classificazione']].tail())
+    
+    return df_grouped
+
+
+# Funzione per etichettare l'incremento per record nel DataFrame completo
+def etichetta_incremento_per_record(df, df_incremento):
+    # Uniamo df e df_incremento sulla colonna 'semestre'
+    df = df.merge(df_incremento[['semestre', 'classificazione']], on='semestre', how='left')
+    
+    # Rinominiamo la colonna 'classificazione' in 'incremento_teleassistenza'
+    df.rename(columns={'classificazione': 'incremento_teleassistenza'}, inplace=True)
+    
+    # Visualizza un campione del risultato
+    print(df[['semestre', 'incremento_teleassistenza']].head())
+    
+    return df
+
+
+
+
 if __name__ == "__main__":
     filepath = "./challenge_campus_biomedico_2024.parquet"
     
@@ -419,9 +530,48 @@ if __name__ == "__main__":
     'comune_residenza_lng', 'provincia_erogazione_lat', 'provincia_erogazione_lng'
 ]
 
-    df = df[selected_columns]
+    df_feature_selezionate = df[selected_columns]
     # Mostra i primi risultati del DataFrame
     print(df.head())
 
     print(df.columns)
+
+    # Crea la colonna 'semestre' basata su 'data_erogazione'
+    df = crea_colonna_semestre(df_feature_selezionate)
+
+    # Controlla i valori NaN nella colonna 'provincia_erogazione_lng' e 'provincia_erogazione_lat'
+    conta_nan_colonna(df, 'provincia_erogazione_lng')
+    conta_nan_colonna(df, 'provincia_erogazione_lat')
+
+
+    # Calcola l'incremento percentuale delle teleassistenze per semestre
+    df_incremento = calcola_incremento_teleassistenze(df)
+
+    # Visualizza i primi 5 risultati
+    print(df_incremento.head())
+    # Visualizza gli ultimi 5 risultati
+    print(df_incremento.tail())
+
+    # Classifica l'incremento per ogni semestre
+    df_incremento = classifica_incremento_per_semestre(df_incremento)
+
+    # Etichetta l'incremento per record nel DataFrame completo
+    df = etichetta_incremento_per_record(df_feature_selezionate, df_incremento)
+    # Visualizza i primi 5 risultati
+    print(df.head())
+    # Visualizza gli ultimi 5 risultati
+    print(df.tail())
+
+
+
+
+
+
+
+
+
+
+
+
+
     
