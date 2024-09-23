@@ -36,13 +36,10 @@ def get_geopy_coordinates(comune, attempts=3):
     return None
 
 # List of missing cities
-missing_cities = ['Nardò', 'Valdilana', "Città Sant'Angelo", 'Corigliano-Rossano', 
-                  'Gattico-Veruno', 'Paternò', 'Alì', 'Almè', 'Canicattì', 
-                  'San Donà di Piave', 'Zerbolò', 'Città di Castello', 
-                  'Merì', 'Codognè', 'Fossò', 'Cefalù']
+missing_cities = ['Barletta-Andria-Trani', 'Verbano-Cusio-Ossola', 'Monza e della Brianza', 'Reggio Calabria', 'Bolzano/Bozen', "Valle d'Aosta/Vall�e d'Aoste"]
 
 # File path for the existing coordinates
-coordinate_file = './coordinate_vere.json'
+coordinate_file = './coordinate_dataset.json'
 
 # Load existing coordinates
 existing_coordinates = load_existing_coordinates(coordinate_file)
