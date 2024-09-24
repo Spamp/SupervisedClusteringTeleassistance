@@ -1,5 +1,6 @@
 import pandas as pd
 import json
+import numpy as np
 
 def read_file_parquet(filepath):
     # Leggi il file Parquet
@@ -318,7 +319,6 @@ def replace_city_columns_with_coordinates(df, city_columns, coordinates_dict):
     return df
 
 
-import numpy as np
 
 def crea_colonna_semestre(df):
     # Converti 'data_erogazione' in datetime se non lo è già
@@ -382,34 +382,29 @@ def calcola_incremento_teleassistenze(df):
 
     return grouped
 
-
-# Funzione per classificare l'incremento
-def classifica_incremento(incremento):
-    if incremento > 10:
-        return 'alto'
-    elif 5 < incremento <= 10:
-        return 'medio'
-    elif -5 <= incremento <= 5:
-        return 'costante'
-    else:
-        return 'basso'
     
 
-# Funzione che classifica l'incremento per ogni semestre senza usare apply
+# Funzione aggiornata per classificare l'incremento per ogni semestre
 def classifica_incremento_per_semestre(df_grouped):
-    # Inizializziamo la colonna 'classificazione' come vuota
-    df_grouped['classificazione'] = 'basso'  # Assegniamo 'basso' come default
-
-    # Classifichiamo in modo vettoriale
-    df_grouped.loc[df_grouped['incremento'] > 10, 'classificazione'] = 'alto'
-    df_grouped.loc[(df_grouped['incremento'] > 5) & (df_grouped['incremento'] <= 10), 'classificazione'] = 'medio'
-    df_grouped.loc[(df_grouped['incremento'] >= -5) & (df_grouped['incremento'] <= 5), 'classificazione'] = 'costante'
-
-    # Visualizza i primi risultati per confermare
-    print(df_grouped[['semestre', 'num_teleassistenze', 'incremento', 'classificazione']].head())
-    print(df_grouped[['semestre', 'num_teleassistenze', 'incremento', 'classificazione']].tail())
+    # Inizializziamo la colonna 'classificazione' come 'Stabile' di default
+    df_grouped['classificazione'] = 'Stabile'
+    
+    # Classificazione per 'Decremento significativo'
+    df_grouped.loc[df_grouped['incremento'] < 0, 'classificazione'] = 'Decremento significativo'
+    
+    # Classificazione per 'Incremento moderato'
+    df_grouped.loc[(df_grouped['incremento'] > 0) & (df_grouped['incremento'] <= 40), 'classificazione'] = 'Incremento moderato'
+    
+    # Classificazione per 'Incremento alto'
+    df_grouped.loc[df_grouped['incremento'] > 40, 'classificazione'] = 'Incremento alto'
+    
+    # Visualizza i risultati per conferma
+    print(df_grouped[['semestre', 'num_teleassistenze', 'incremento', 'classificazione']])
     
     return df_grouped
+
+
+
 
 
 # Funzione per etichettare l'incremento per record nel DataFrame completo
@@ -521,46 +516,45 @@ if __name__ == "__main__":
     # Sostituisci i nomi delle città con le coordinate nelle colonne specificate
     df = replace_city_columns_with_coordinates(df, ['provincia_residenza','comune_residenza', 'provincia_erogazione'], coordinates_dict)
 
-    selected_columns = [
+    # Crea la colonna 'semestre' basata su 'data_erogazione'
+df = crea_colonna_semestre(df)
+
+# Controlla i valori NaN nella colonna 'provincia_erogazione_lng' e 'provincia_erogazione_lat'
+conta_nan_colonna(df, 'provincia_erogazione_lng')
+conta_nan_colonna(df, 'provincia_erogazione_lat')
+
+# Calcola l'incremento percentuale delle teleassistenze per semestre
+df_incremento = calcola_incremento_teleassistenze(df)
+
+# Visualizza i primi 5 risultati
+print(df_incremento.head())
+# Visualizza gli ultimi 5 risultati
+print(df_incremento.tail())
+
+# Classifica l'incremento per ogni semestre
+df_incremento = classifica_incremento_per_semestre(df_incremento)
+
+
+selected_columns = [
     'id_prenotazione', 'codice_asl_residenza', 'codice_descrizione_attivita',
     'codice_asl_erogazione', 'codice_struttura_erogazione',
     'codice_tipologia_struttura_erogazione', 'codice_tipologia_professionista_sanitario',
     'data_erogazione', 'età', 'durata_assistenza', 'sesso_bool', 'attesa_assistenza',
     'provincia_residenza_lat', 'provincia_residenza_lng', 'comune_residenza_lat',
-    'comune_residenza_lng', 'provincia_erogazione_lat', 'provincia_erogazione_lng'
+    'comune_residenza_lng', 'provincia_erogazione_lat', 'provincia_erogazione_lng',
+    'semestre'  
 ]
 
-    df_feature_selezionate = df[selected_columns]
-    # Mostra i primi risultati del DataFrame
-    print(df.head())
+df_feature_selezionate = df[selected_columns]
 
-    print(df.columns)
+# Etichetta l'incremento per record nel DataFrame completo
+df_feature_selezionate = etichetta_incremento_per_record(df_feature_selezionate, df_incremento)
 
-    # Crea la colonna 'semestre' basata su 'data_erogazione'
-    df = crea_colonna_semestre(df_feature_selezionate)
+# Visualizza i primi 5 risultati
+print(df_feature_selezionate.head())
+# Visualizza gli ultimi 5 risultati
+print(df_feature_selezionate.tail())
 
-    # Controlla i valori NaN nella colonna 'provincia_erogazione_lng' e 'provincia_erogazione_lat'
-    conta_nan_colonna(df, 'provincia_erogazione_lng')
-    conta_nan_colonna(df, 'provincia_erogazione_lat')
-
-
-    # Calcola l'incremento percentuale delle teleassistenze per semestre
-    df_incremento = calcola_incremento_teleassistenze(df)
-
-    # Visualizza i primi 5 risultati
-    print(df_incremento.head())
-    # Visualizza gli ultimi 5 risultati
-    print(df_incremento.tail())
-
-    # Classifica l'incremento per ogni semestre
-    df_incremento = classifica_incremento_per_semestre(df_incremento)
-
-    # Etichetta l'incremento per record nel DataFrame completo
-    df = etichetta_incremento_per_record(df_feature_selezionate, df_incremento)
-    # Visualizza i primi 5 risultati
-    print(df.head())
-    # Visualizza gli ultimi 5 risultati
-    print(df.tail())
 
 
 
