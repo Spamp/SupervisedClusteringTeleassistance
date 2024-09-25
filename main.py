@@ -390,7 +390,7 @@ def classifica_incremento_per_semestre(df_grouped):
     df_grouped['classificazione'] = 'Stabile'
     
     # Classificazione per 'Decremento significativo'
-    df_grouped.loc[df_grouped['incremento'] < 0, 'classificazione'] = 'Decremento significativo'
+    df_grouped.loc[df_grouped['incremento'] < 0, 'classificazione'] = 'Decremento'
     
     # Classificazione per 'Incremento moderato'
     df_grouped.loc[(df_grouped['incremento'] > 0) & (df_grouped['incremento'] <= 40), 'classificazione'] = 'Incremento moderato'
