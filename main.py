@@ -420,6 +420,27 @@ def etichetta_incremento_per_record(df, df_incremento):
     
     return df
 
+# ... (tutte le altre funzioni e codice)
+
+# Funzione per salvare il DataFrame in un file Parquet
+def salva_dataframe(df, nome_file):
+    """
+    Salva il DataFrame in un file Parquet.
+
+    Parametri:
+    - df: il DataFrame da salvare
+    - nome_file: nome del file Parquet (includi l'estensione .parquet)
+
+    Restituisce:
+    - None
+    """
+    try:
+        df.to_parquet(nome_file, index=False)
+        print(f"DataFrame salvato con successo in '{nome_file}'")
+    except Exception as e:
+        print(f"Errore durante il salvataggio del DataFrame: {e}")
+
+
 
 
 
@@ -551,6 +572,9 @@ if __name__ == "__main__":
     # Etichetta l'incremento per record nel DataFrame completo
     df_feature_selezionate = etichetta_incremento_per_record(df_feature_selezionate, df_incremento)
 
+    path_dataset_pulito='./dataset_pulito.parquet'
+
+    salva_dataframe(df_feature_selezionate,path_dataset_pulito)
     # Visualizza i primi 5 risultati
     print(df_feature_selezionate.head())
     # Visualizza gli ultimi 5 risultati

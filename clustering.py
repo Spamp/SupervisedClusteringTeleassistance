@@ -49,7 +49,7 @@ def prepara_dati(df, numerical_columns, categorical_columns, include_coords=Fals
     return X_matrix, categorical_indices, df_clustering
 
 # Funzione per eseguire il clustering
-def esegui_clustering(X_matrix, categorical_indices, k_clusters=5, gamma=None):
+def esegui_clustering(X_matrix, categorical_indices, k_clusters=4, gamma=None):
     # Esegui K-Prototypes con il parametro gamma per bilanciare le variabili
     kproto = KPrototypes(n_clusters=k_clusters, init='Cao', verbose=1, random_state=42, gamma=gamma)
     clusters = kproto.fit_predict(X_matrix, categorical=categorical_indices)
@@ -158,13 +158,13 @@ def analisi_fitness(df_clustering, clusters, categorical_indices, calcola_silhou
 
     return ari_score, sil_score
 
-filepath=''
+filepath='./dataset_pulito.parquet'
 # Leggi il file Parquet
 df = read_file_parquet(filepath)
 # Esperimento 1: Epidemia
 
 # Definisci le feature
-numerical_columns_exp1 = []
+numerical_columns_exp1 = ['provincia_erogazione_lat', 'provincia_erogazione_lng']
 categorical_columns_exp1 = [
     'codice_tipologia_professionista_sanitario',
     'codice_descrizione_attivita'
@@ -188,7 +188,7 @@ gamma_value_exp1 = len(numerical_columns_exp1) / len(categorical_columns_exp1) i
 clusters_exp1, kproto_exp1 = esegui_clustering(
     X_matrix_exp1,
     categorical_indices_exp1,
-    k_clusters=5,
+    k_clusters=4,
     gamma=gamma_value_exp1
 )
 
