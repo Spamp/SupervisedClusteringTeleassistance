@@ -558,9 +558,9 @@ if __name__ == "__main__":
 
 
     selected_columns = [
-        'id_prenotazione', 'codice_asl_residenza', 'codice_descrizione_attivita',
-        'codice_asl_erogazione', 'codice_struttura_erogazione',
-        'codice_tipologia_struttura_erogazione', 'codice_tipologia_professionista_sanitario',
+        'id_prenotazione', 'asl_residenza', 'descrizione_attivita',
+        'asl_erogazione', 'struttura_erogazione',
+        'tipologia_struttura_erogazione', 'regione','tipologia_professionista_sanitario',
         'data_erogazione', 'età', 'durata_assistenza', 'sesso_bool', 'attesa_assistenza',
         'provincia_residenza_lat', 'provincia_residenza_lng', 'comune_residenza_lat',
         'comune_residenza_lng', 'provincia_erogazione_lat', 'provincia_erogazione_lng',
