@@ -4,10 +4,29 @@ from sklearn.preprocessing import StandardScaler
 from kmodes.kprototypes import KPrototypes
 import matplotlib.pyplot as plt
 import seaborn as sns
-import time  # Importa il modulo time
-from sklearn.metrics import adjusted_rand_score, silhouette_score
-import gower
-from sklearn.metrics import silhouette_samples
+import time
+from sklearn.metrics import adjusted_rand_score
+
+# --- Funzioni di Preprocessing ---
+
+def read_file_parquet(filepath):
+    """
+    Legge un file Parquet e ritorna un DataFrame.
+    """
+    df = pd.read_parquet(filepath)
+
+    # Verifica la struttura del DataFrame per assicurarti che i dati siano stati letti correttamente
+    print("Ecco le prime righe del DataFrame:")
+    print(df.head())
+
+    # Conta il numero totale di record
+    print(f"Numero totale di record: {len(df)}")
+
+    # Stampa i nomi delle colonne
+    print("\nColonne presenti nel DataFrame:")
+    print(df.columns.tolist())
+
+    return df
 
 def controlla_valori_numerici(df, numerical_columns):
     """
@@ -39,25 +58,6 @@ def cerca_valore(df, valore='DIE'):
         print(f"Valore '{valore}' non trovato in nessuna colonna.")
     return colonne_con_valore
 
-def read_file_parquet(filepath):
-    """
-    Legge un file Parquet e ritorna un DataFrame.
-    """
-    df = pd.read_parquet(filepath)
-
-    # Verifica la struttura del DataFrame per assicurarti che i dati siano stati letti correttamente
-    print("Ecco le prime righe del DataFrame:")
-    print(df.head())
-
-    # Conta il numero totale di record
-    print(f"Numero totale di record: {len(df)}")
-
-    # Stampa i nomi delle colonne
-    print("\nColonne presenti nel DataFrame:")
-    print(df.columns.tolist())
-
-    return df
-
 def prepara_dati(df, numerical_columns, categorical_columns, additional_columns=[]):
     """
     Prepara i dati per il clustering.
@@ -75,12 +75,18 @@ def prepara_dati(df, numerical_columns, categorical_columns, additional_columns=
     for col in numerical_columns:
         df_clustering[col] = pd.to_numeric(df_clustering[col], errors='coerce')
 
+    # Salva le coordinate originali prima della standardizzazione
+    coordinate_cols = ['provincia_erogazione_lat', 'provincia_erogazione_lng']
+    for col in coordinate_cols:
+        if col in df_clustering.columns:
+            df_clustering[col + '_orig'] = df_clustering[col]
+
     # Standardizza le variabili numeriche
     scaler = StandardScaler()
     df_clustering[numerical_columns] = scaler.fit_transform(df_clustering[numerical_columns])
 
     # Rimuovi eventuali righe con valori mancanti
-    columns_to_keep = numerical_columns + categorical_columns + ['incremento_teleassistenza'] + additional_columns
+    columns_to_keep = numerical_columns + categorical_columns + ['incremento_teleassistenza'] + additional_columns + [col + '_orig' for col in coordinate_cols if col in df_clustering.columns]
     df_clustering = df_clustering[columns_to_keep].dropna()
 
     # Converti in array numpy
@@ -90,6 +96,8 @@ def prepara_dati(df, numerical_columns, categorical_columns, additional_columns=
     categorical_indices = list(range(len(numerical_columns), len(numerical_columns) + len(categorical_columns)))
 
     return X_matrix, categorical_indices, df_clustering
+
+# --- Funzioni di Clustering e Valutazione ---
 
 def esegui_clustering(X_matrix, categorical_indices, k_clusters=4, gamma=None, n_init=10, max_iter=100):
     """
@@ -150,23 +158,17 @@ def analisi_purezza(df_clustering, clusters):
 
     return overall_purity
 
-def analisi_fitness(df_clustering, clusters, categorical_indices, additional_columns=[], calcola_silhouette=True):
+def analisi_fitness(df_clustering, clusters):
     """
-    Calcola l'Adjusted Rand Index e il Silhouette Score per valutare la qualità del clustering.
-    
+    Calcola l'Adjusted Rand Index per valutare la qualità del clustering.
+
     Parametri:
     - df_clustering: DataFrame dei dati clusterizzati.
     - clusters: Array degli assegnamenti dei cluster.
-    - categorical_indices: Lista degli indici delle colonne categoriali.
-    - additional_columns: Lista di colonne aggiuntive da escludere (default: []).
-    - calcola_silhouette: Booleano per calcolare o meno il Silhouette Score (default: True).
-    
+
     Restituisce:
     - ari_score: Adjusted Rand Index.
-    - sil_score: Silhouette Score (se calcola).
     """
-   
-
     # Calcolo dell'Adjusted Rand Index
     print("\nCalcolo dell'Adjusted Rand Index:")
     labels_true = df_clustering['incremento_teleassistenza'].astype('category').cat.codes
@@ -175,177 +177,234 @@ def analisi_fitness(df_clustering, clusters, categorical_indices, additional_col
     ari_score = adjusted_rand_score(labels_true, labels_pred)
     print(f"Adjusted Rand Index: {ari_score:.4f}")
 
-    sil_score = None
-    # Calcolo del Silhouette Score (usando Gower Distance per dati misti)
-    if calcola_silhouette:
-        print("\nCalcolo del Silhouette Score (Distanza di Gower):")
-        
-        # Identifica i nomi delle colonne categoriali basate sugli indici
-        categorical_columns = df_clustering.columns[categorical_indices].tolist()
-        
-        # Definisci le colonne da escludere: categoriali, 'cluster', 'incremento_teleassistenza', e additional_columns
-        exclude_columns = categorical_columns + ['cluster', 'incremento_teleassistenza'] + additional_columns
-        
-        # Crea una copia del DataFrame escludendo le colonne categoriali e aggiuntive
-        numerical_df = df_clustering.drop(columns=exclude_columns, errors='ignore')
-        
-        # Crea una copia del DataFrame escludendo le colonne numeriche e aggiuntive
-        categorical_df = df_clustering[categorical_columns].copy()
-        
-        if not numerical_df.empty or not categorical_df.empty:
-            # Calcola la matrice di distanza di Gower
-            gower_dist = gower.gower_matrix(df_clustering.drop(columns=['cluster', 'incremento_teleassistenza'] + additional_columns, errors='ignore'))
-            
-            # Calcola il Silhouette Score utilizzando la matrice di distanza precomputata
-            if len(np.unique(clusters)) > 1:
-                sil_score = silhouette_score(gower_dist, clusters, metric='precomputed')
-                print(f"Silhouette Score: {sil_score:.4f}")
-            else:
-                print("Non è possibile calcolare il Silhouette Score con un solo cluster.")
-        else:
-            print("Non ci sono variabili numeriche o categoriali per calcolare il Silhouette Score.")
-    else:
-        print("Calcolo del Silhouette Score saltato.")
+    return ari_score
 
-    return ari_score, sil_score
+# --- Funzioni per l'Analisi delle Caratteristiche dei Cluster ---
+
+def calcola_statistiche_cluster(df_clustering, clusters, numerical_columns, categorical_columns):
+    """
+    Calcola statistiche descrittive per ogni cluster.
+
+    Parametri:
+    - df_clustering: DataFrame dei dati clusterizzati
+    - clusters: array degli assegnamenti dei cluster
+    - numerical_columns: lista delle colonne numeriche
+    - categorical_columns: lista delle colonne categoriali
+
+    Restituisce:
+    - stats_clusters: dizionario con statistiche per ogni cluster
+    """
+    df_clustering = df_clustering.copy()
+    df_clustering['cluster'] = clusters
+    stats_clusters = {}
+
+    for cluster_label in np.unique(clusters):
+        cluster_data = df_clustering[df_clustering['cluster'] == cluster_label]
+        stats = {}
+
+        # Statistiche sulle variabili numeriche
+        stats['numerical'] = cluster_data[numerical_columns].describe().to_dict()
+
+        # Statistiche sulle variabili categoriali
+        stats['categorical'] = {}
+        for col in categorical_columns:
+            value_counts = cluster_data[col].value_counts(normalize=True).head(5)
+            stats['categorical'][col] = value_counts.to_dict()
+
+        stats_clusters[cluster_label] = stats
+
+    return stats_clusters
+
+def crea_tabella_riassuntiva(stats_clusters):
+    """
+    Crea una tabella riassuntiva delle caratteristiche dei cluster.
+
+    Parametri:
+    - stats_clusters: dizionario con statistiche per ogni cluster
+    """
+    for cluster_label, stats in stats_clusters.items():
+        print(f"\nCluster {cluster_label}:\n")
+        print("Variabili Numeriche:")
+        for stat, values in stats['numerical'].items():
+            print(f"  {stat}:")
+            for var, value in values.items():
+                print(f"    {var}: {value:.2f}")
+        print("\nVariabili Categoriali:")
+        for col, freqs in stats['categorical'].items():
+            print(f"  {col}:")
+            for category, freq in freqs.items():
+                print(f"    {category}: {freq*100:.2f}%")
+
+def assegnare_etichette_cluster(stats_clusters):
+    """
+    Assegna etichette ai cluster basate sulle caratteristiche distintive.
+
+    Parametri:
+    - stats_clusters: dizionario con statistiche per ogni cluster
+
+    Restituisce:
+    - etichette_cluster: dizionario che mappa i cluster alle etichette
+    """
+    etichette_cluster = {}
+    for cluster_label, stats in stats_clusters.items():
+        # Crea un'etichetta basata sulle categorie più frequenti
+        principali_categorie = []
+        for col in stats['categorical']:
+            categorie = list(stats['categorical'][col].keys())
+            if categorie:
+                categoria_principale = categorie[0]
+                principali_categorie.append(f"{col}: {categoria_principale}")
+        etichetta = f"Cluster {cluster_label}"
+        if principali_categorie:
+            etichetta += " (" + ", ".join(principali_categorie) + ")"
+        etichette_cluster[cluster_label] = etichetta
+    return etichette_cluster
 
 # --- Funzioni di Visualizzazione ---
 
-def plot_regione_erogazione_distribution(df_clustering, clusters, region_column='regione_erogazione', k_clusters=4):
+def plot_variabili_numeriche(df_clustering, clusters, numerical_columns):
     """
-    Crea un grafico a barre per ogni cluster mostrando la distribuzione delle regioni di erogazione.
+    Crea boxplot per le variabili numeriche per ogni cluster.
+    Per le coordinate (latitudine e longitudine), crea uno scatter plot.
 
     Parametri:
     - df_clustering: DataFrame dei dati clusterizzati
     - clusters: array degli assegnamenti dei cluster
-    - region_column: nome della colonna che contiene le regioni
-    - k_clusters: numero di cluster
+    - numerical_columns: lista delle colonne numeriche
     """
-    # Aggiungi i cluster al DataFrame
+    df_clustering = df_clustering.copy()
     df_clustering['cluster'] = clusters
 
-    # Definisci il numero di righe e colonne per i subplots
-    n_cols = 2
-    n_rows = (k_clusters + n_cols - 1) // n_cols
+    # Identifica le colonne delle coordinate
+    coordinate_cols = ['provincia_erogazione_lat', 'provincia_erogazione_lng']
+    coordinate_cols_orig = ['provincia_erogazione_lat_orig', 'provincia_erogazione_lng_orig']
 
-    fig, axes = plt.subplots(n_rows, n_cols, figsize=(15, 5 * n_rows))
-    axes = axes.flatten()
+    # Verifica se le coordinate sono presenti nelle variabili numeriche
+    if all(col in numerical_columns for col in coordinate_cols):
+        # Scatter plot per le coordinate
+        plt.figure(figsize=(10, 8))
+        sns.scatterplot(
+            x='provincia_erogazione_lng_orig',
+            y='provincia_erogazione_lat_orig',
+            hue='cluster',
+            data=df_clustering.sample(n=10000, random_state=42),  # Campione per velocizzare il plot
+            palette='viridis',
+            alpha=0.5
+        )
+        plt.title('Distribuzione Geografica dei Cluster')
+        plt.xlabel('Longitudine')
+        plt.ylabel('Latitudine')
+        plt.legend(title='Cluster')
+        plt.show()
+        # Rimuovi le coordinate dalle variabili numeriche da plottare come boxplot
+        numerical_columns = [col for col in numerical_columns if col not in coordinate_cols]
 
-    for cluster_label in range(k_clusters):
-        ax = axes[cluster_label]
-        subset = df_clustering[df_clustering['cluster'] == cluster_label]
-        conteggio_regioni = subset[region_column].value_counts()
-        conteggio_regioni.plot(kind='bar', ax=ax, color='skyblue')
-        ax.set_title(f'Cluster {cluster_label} - Distribuzione Regioni')
-        ax.set_xlabel('Regione Erogazione')
-        ax.set_ylabel('Conteggio')
-        ax.tick_params(axis='x', rotation=45)
+    # Boxplot per le altre variabili numeriche
+    for col in numerical_columns:
+        plt.figure(figsize=(10, 6))
+        sns.boxplot(x='cluster', y=col, data=df_clustering, order=sorted(df_clustering['cluster'].unique()))
+        plt.title(f'Distribuzione di {col} per Cluster')
+        plt.show()
 
-    # Rimuovi eventuali subplots vuoti
-    for i in range(k_clusters, len(axes)):
-        fig.delaxes(axes[i])
-
-    plt.tight_layout()
-    plt.show()
-
-def plot_cluster_composition(df_clustering, clusters, numerical_columns, categorical_columns, k_clusters=4):
+def plot_variabili_categoriali(df_clustering, clusters, categorical_columns, additional_categorical=[], top_n=10, frequency_threshold=0.01):
     """
-    Crea istogrammi per le variabili numeriche e grafici a barre per le variabili categoriali per ogni cluster.
+    Crea grafici a barre per le variabili categoriali per ogni cluster, mostrando le categorie che superano una certa soglia di frequenza
+    e raggruppando le altre in 'Altre'.
 
     Parametri:
     - df_clustering: DataFrame dei dati clusterizzati
     - clusters: array degli assegnamenti dei cluster
-    - numerical_columns: lista delle colonne numeriche utilizzate per il clustering
-    - categorical_columns: lista delle colonne categoriali utilizzate per il clustering
-    - k_clusters: numero di cluster
+    - categorical_columns: lista delle colonne categoriali utilizzate nel clustering
+    - additional_categorical: lista di colonne categoriali aggiuntive da plottare
+    - top_n: numero massimo di categorie da visualizzare
+    - frequency_threshold: soglia minima di frequenza relativa per mantenere una categoria (valore tra 0 e 1)
     """
-    # Aggiungi i cluster al DataFrame
+    df_clustering = df_clustering.copy()
     df_clustering['cluster'] = clusters
 
-    # Definisci il numero di righe e colonne per i subplots
-    n_cols = 2
-    n_rows_num = (len(numerical_columns) + n_cols - 1) // n_cols
-    n_rows_cat = (len(categorical_columns) + n_cols - 1) // n_cols
+    # Combina le colonne categoriali utilizzate nel clustering e quelle aggiuntive
+    all_categorical_columns = categorical_columns + additional_categorical
 
-    # Plot delle variabili numeriche
-    fig_num, axes_num = plt.subplots(n_rows_num, n_cols, figsize=(15, 5 * n_rows_num))
-    axes_num = axes_num.flatten()
+    # Campiona i dati per velocizzare il plot
+    df_sample = df_clustering.sample(n=10000, random_state=42)
 
-    for i, col in enumerate(numerical_columns):
-        ax = axes_num[i]
-        sns.histplot(data=df_clustering, x=col, hue='cluster', multiple='stack', palette='husl', kde=True, ax=ax)
-        ax.set_title(f'Distribuzione di {col} per Cluster')
-        ax.set_xlabel(col)
-        ax.set_ylabel('Conteggio')
+    for col in all_categorical_columns:
+        # Calcola la frequenza relativa delle categorie
+        category_frequencies = df_sample[col].value_counts(normalize=True)
+        # Identifica le categorie da mantenere
+        categories_to_keep = category_frequencies[category_frequencies >= frequency_threshold].index
+        # Se il numero di categorie da mantenere supera top_n, seleziona le top_n categorie
+        if len(categories_to_keep) > top_n:
+            categories_to_keep = category_frequencies.head(top_n).index
+        # Raggruppa le categorie
+        df_sample[col + '_plot'] = np.where(df_sample[col].isin(categories_to_keep), df_sample[col], 'Altre')
+        # Ordina le categorie per la visualizzazione
+        category_order = list(categories_to_keep) + ['Altre']
 
-    # Rimuovi eventuali subplots vuoti
-    for i in range(len(numerical_columns), len(axes_num)):
-        fig_num.delaxes(axes_num[i])
+        plt.figure(figsize=(10, 6))
+        sns.countplot(x=col + '_plot', hue='cluster', data=df_sample, order=category_order)
+        plt.title(f'Distribuzione di {col} per Cluster (Categorie con frequenza >= {frequency_threshold*100:.1f}% o Top {top_n})')
+        plt.xticks(rotation=45)
+        plt.show()
 
-    plt.tight_layout()
-    plt.show()
-
-    # Plot delle variabili categoriali
-    fig_cat, axes_cat = plt.subplots(n_rows_cat, n_cols, figsize=(15, 5 * n_rows_cat))
-    axes_cat = axes_cat.flatten()
-
-    for i, col in enumerate(categorical_columns):
-        ax = axes_cat[i]
-        sns.countplot(data=df_clustering, x=col, hue='cluster', palette='husl', ax=ax)
-        ax.set_title(f'Conteggio di {col} per Cluster')
-        ax.set_xlabel(col)
-        ax.set_ylabel('Conteggio')
-        ax.tick_params(axis='x', rotation=45)
-
-    # Rimuovi eventuali subplots vuoti
-    for i in range(len(categorical_columns), len(axes_cat)):
-        fig_cat.delaxes(axes_cat[i])
-
-    plt.tight_layout()
-    plt.show()
-
-def plot_silhouette_scores(X_numeric, clusters, silhouette_avg):
+def plot_variabili_categoriali_con_etichette(df_clustering, cluster_label_col, categorical_columns, additional_categorical=[], top_n=10, frequency_threshold=0.01):
     """
-    Crea un grafico del Silhouette Score per ogni campione e mostra il punteggio medio.
+    Crea grafici a barre per le variabili categoriali utilizzando le etichette dei cluster, mostrando le categorie che superano una certa soglia di frequenza
+    e raggruppando le altre in 'Altre'.
 
     Parametri:
-    - X_numeric: array delle variabili numeriche
-    - clusters: array degli assegnamenti dei cluster
-    - silhouette_avg: punteggio medio del Silhouette Score
+    - df_clustering: DataFrame dei dati clusterizzati
+    - cluster_label_col: nome della colonna con le etichette dei cluster
+    - categorical_columns: lista delle colonne categoriali utilizzate nel clustering
+    - additional_categorical: lista di colonne categoriali aggiuntive da plottare
+    - top_n: numero massimo di categorie da visualizzare
+    - frequency_threshold: soglia minima di frequenza relativa per mantenere una categoria (valore tra 0 e 1)
     """
-    
+    df_clustering = df_clustering.copy()
 
-    silhouette_vals = silhouette_samples(X_numeric, clusters, metric='euclidean')
+    # Combina le colonne categoriali utilizzate nel clustering e quelle aggiuntive
+    all_categorical_columns = categorical_columns + additional_categorical
 
-    y_lower = 10
-    fig, ax = plt.subplots(figsize=(10, 6))
-    k = len(np.unique(clusters))
-    palette = sns.color_palette("husl", k)
+    # Campiona i dati per velocizzare il plot
+    df_sample = df_clustering.sample(n=10000, random_state=42)
 
-    for i in range(k):
-        ith_cluster_silhouette_values = silhouette_vals[clusters == i]
-        ith_cluster_silhouette_values.sort()
+    for col in all_categorical_columns:
+        # Calcola la frequenza relativa delle categorie
+        category_frequencies = df_sample[col].value_counts(normalize=True)
+        # Identifica le categorie da mantenere
+        categories_to_keep = category_frequencies[category_frequencies >= frequency_threshold].index
+        # Se il numero di categorie da mantenere supera top_n, seleziona le top_n categorie
+        if len(categories_to_keep) > top_n:
+            categories_to_keep = category_frequencies.head(top_n).index
+        # Raggruppa le categorie
+        df_sample[col + '_plot'] = np.where(df_sample[col].isin(categories_to_keep), df_sample[col], 'Altre')
+        # Ordina le categorie per la visualizzazione
+        category_order = list(categories_to_keep) + ['Altre']
 
-        size_cluster_i = ith_cluster_silhouette_values.shape[0]
-        y_upper = y_lower + size_cluster_i
+        plt.figure(figsize=(10, 6))
+        sns.countplot(x=col + '_plot', hue=cluster_label_col, data=df_sample, order=category_order)
+        plt.title(f'Distribuzione di {col} per {cluster_label_col} (Categorie con frequenza >= {frequency_threshold*100:.1f}% o Top {top_n})')
+        plt.xticks(rotation=45)
+        plt.show()
 
-        color = palette[i]
-        ax.fill_betweenx(np.arange(y_lower, y_upper),
-                         0, ith_cluster_silhouette_values,
-                         facecolor=color, edgecolor=color, alpha=0.7)
+def raggruppa_categorie_rare(df, colonna, soglia=0.01):
+    """
+    Raggruppa le categorie meno frequenti in una categoria "Altre".
 
-        ax.text(-0.05, y_lower + 0.5 * size_cluster_i, str(i))
+    Parametri:
+    - df: DataFrame
+    - colonna: nome della colonna categoriale
+    - soglia: frequenza minima per mantenere una categoria (valore tra 0 e 1)
 
-        y_lower = y_upper + 10  # 10 for spacing
+    Restituisce:
+    - df: DataFrame con le categorie raggruppate
+    """
+    frequenze = df[colonna].value_counts(normalize=True)
+    categorie_da_mantenere = frequenze[frequenze >= soglia].index
+    df[colonna] = np.where(df[colonna].isin(categorie_da_mantenere), df[colonna], 'Altre')
+    return df
 
-    ax.axvline(x=silhouette_avg, color="red", linestyle="--")
-    ax.set_title("Silhouette plot per cluster")
-    ax.set_xlabel("Silhouette coefficient values")
-    ax.set_ylabel("Cluster label")
-
-    plt.show()
-
-def plot_purity_incremento(df_clustering, clusters, incremento_column='incremento_teleassistenza', k_clusters=4):
+def plot_purity_incremento(df_clustering, clusters, incremento_column='incremento_teleassistenza'):
     """
     Crea un grafico a barre per ogni cluster mostrando la distribuzione di incremento_teleassistenza.
 
@@ -353,10 +412,10 @@ def plot_purity_incremento(df_clustering, clusters, incremento_column='increment
     - df_clustering: DataFrame dei dati clusterizzati
     - clusters: array degli assegnamenti dei cluster
     - incremento_column: nome della colonna che contiene l'incremento di teleassistenza
-    - k_clusters: numero di cluster
     """
     # Aggiungi i cluster al DataFrame
     df_clustering['cluster'] = clusters
+    k_clusters = len(np.unique(clusters))
 
     # Definisci il numero di righe e colonne per i subplots
     n_cols = 2
@@ -365,8 +424,8 @@ def plot_purity_incremento(df_clustering, clusters, incremento_column='increment
     fig, axes = plt.subplots(n_rows, n_cols, figsize=(15, 5 * n_rows))
     axes = axes.flatten()
 
-    for cluster_label in range(k_clusters):
-        ax = axes[cluster_label]
+    for idx, cluster_label in enumerate(sorted(np.unique(clusters))):
+        ax = axes[idx]
         subset = df_clustering[df_clustering['cluster'] == cluster_label]
         conteggio_incremento = subset[incremento_column].value_counts()
         conteggio_incremento.plot(kind='bar', ax=ax, color='salmon')
@@ -388,18 +447,17 @@ def plot_purity_incremento(df_clustering, clusters, incremento_column='increment
 filepath = './dataset_pulito.parquet'
 df = read_file_parquet(filepath)
 
-# Esperimento 1: Epidemia
+# Definisci il numero di cluster
+k_clusters = 4  # Modifica questo valore per i tuoi esperimenti
 
 # Definisci le feature per il clustering
 numerical_columns_exp1 = ['provincia_erogazione_lat', 'provincia_erogazione_lng']
 categorical_columns_exp1 = [
     'tipologia_professionista_sanitario',
     'descrizione_attivita',
-    'regione_erogazione'  # Assicurati di includere 'regione_erogazione' qui
-]
+    ]
 
-# Rimuovi 'regione_erogazione' dalla lista delle colonne aggiuntive poiché ora è categoriale
-additional_columns = []  # ['altra_colonna'] se necessario
+additional_columns = ['regione_erogazione']
 
 # Esegui il controllo per valori non numerici nelle colonne numeriche
 controlla_valori_numerici(df, numerical_columns_exp1)
@@ -407,7 +465,6 @@ controlla_valori_numerici(df, numerical_columns_exp1)
 # Cerca il valore 'DIE' nel DataFrame
 colonne_con_die = cerca_valore(df, valore='DIE')
 
-# Se il valore 'DIE' è presente, identifica le colonne e aggiorna le colonne categoriali
 if colonne_con_die:
     print(f"\nAggiornamento delle colonne categoriali con le colonne contenenti 'DIE': {colonne_con_die}")
     for col in colonne_con_die:
@@ -420,115 +477,104 @@ else:
 df['incremento_teleassistenza'] = df['incremento_teleassistenza'].astype(str)
 
 # Assicurati che le colonne categoriali siano di tipo stringa
-df[categorical_columns_exp1] = df[categorical_columns_exp1].astype(str)
+df[categorical_columns_exp1 + additional_columns] = df[categorical_columns_exp1 + additional_columns].astype(str)
 
 # Assicurati che le colonne numeriche siano di tipo float
 df[numerical_columns_exp1] = df[numerical_columns_exp1].astype(float)
 
-# Prepara i dati per il clustering includendo le colonne aggiuntive (ora vuote)
+# Raggruppa le categorie rare nelle variabili categoriali
+for col in categorical_columns_exp1 + additional_columns:
+    df = raggruppa_categorie_rare(df, colonna=col, soglia=0.01)
+
+# Prepara i dati per il clustering includendo le colonne aggiuntive
 X_matrix_exp1, categorical_indices_exp1, df_clustering_exp1 = prepara_dati(
     df,
     numerical_columns=numerical_columns_exp1,
     categorical_columns=categorical_columns_exp1,
-    additional_columns=additional_columns  # Ora vuoto
+    additional_columns=additional_columns
 )
 
-# Definizione delle Coordinate Geografiche per la Verifica
-coordinate_columns = ['provincia_erogazione_lat', 'provincia_erogazione_lng']
+# --- Calcolo di gamma con controllo ---
 
-# Verifica se le coordinate sono presenti nelle feature numeriche
-if any(col in numerical_columns_exp1 for col in coordinate_columns):
-    # Calcola gamma come rapporto tra numeriche e categoriali
-    if len(categorical_columns_exp1) > 0:
-        gamma_value_exp1 = len(numerical_columns_exp1) / len(categorical_columns_exp1)
-    else:
-        gamma_value_exp1 = 0.5  # Valore predefinito se non ci sono colonne categoriali
-    print(f"\nValore di gamma calcolato: {gamma_value_exp1:.4f}")
+geographical_vars = {'provincia_erogazione_lat', 'provincia_erogazione_lng'}
+numerical_vars_set = set(numerical_columns_exp1)
+
+if geographical_vars.issubset(numerical_vars_set):
+    # Imposta gamma a un valore fisso per ridurre l'influenza delle coordinate
+    gamma_value_exp1 = 0.5  # Puoi regolare questo valore in base alle tue esigenze
+    print(f"\nVariabili geografiche presenti. Gamma impostato a {gamma_value_exp1}.")
 else:
-    # Imposta gamma a None per lasciare che K-Prototypes lo calcoli automaticamente
-    gamma_value_exp1 = None
-    print("\nGamma non impostato. K-Prototypes calcolerà automaticamente il valore di gamma.")
-
-# Verifica gli indici delle colonne categoriali
-print("\nIndici delle colonne categoriali rispetto a X_matrix:")
-for idx in categorical_indices_exp1:
-    print(f"Indice: {idx}, Colonna: {df_clustering_exp1.columns[idx]}")
-
-# Verifica i tipi di dati in X_matrix
-print("\nVerifica dei tipi di dati nell'array X_matrix:")
-for i, col in enumerate(numerical_columns_exp1 + categorical_columns_exp1):
-    if i in categorical_indices_exp1:
-        print(f"Colonna {i} ('{col}') è categoriale e dovrebbe essere stringa.")
-    else:
-        print(f"Colonna {i} ('{col}') è numerica e dovrebbe essere float.")
-
-# Controllo degli unici valori nelle colonne categoriali
-for col in categorical_columns_exp1:
-    unique_values = df_clustering_exp1[col].unique()
-    print(f"\nValori unici nella colonna '{col}':")
-    print(unique_values[:10])  # Stampa i primi 10 valori unici
-
-# Misura il tempo di clustering
-start_time = time.time()
+    gamma_value_exp1 = None  # Non impostiamo gamma
+    print("\nVariabili geografiche non presenti. Gamma non impostato (utilizzo del valore predefinito).")
 
 # Esegui il clustering con n_init e max_iter configurati
+start_time = time.time()
 clusters_exp1, kproto_exp1 = esegui_clustering(
     X_matrix_exp1,
     categorical_indices_exp1,
-    k_clusters=4,
+    k_clusters=k_clusters,
     gamma=gamma_value_exp1,
     n_init=1,        # Numero di run
     max_iter=50      # Numero massimo di iterazioni per run
 )
-
-# Fine del timer
 end_time = time.time()
 elapsed_time = end_time - start_time
 print(f"\nTempo totale di clustering: {elapsed_time:.2f} secondi")
 
+# Aggiungi i cluster al DataFrame principale
+df_clustering_exp1['cluster'] = clusters_exp1
+
 # Analisi della purezza
 overall_purity_exp1 = analisi_purezza(df_clustering_exp1, clusters_exp1)
 
-# Analisi della fitness
-'''ari_score_exp1, sil_score_exp1 = analisi_fitness(
-    df_clustering_exp1, 
-    clusters_exp1, 
-    categorical_indices_exp1, 
-    additional_columns=additional_columns,  # Passa le additional_columns
-    calcola_silhouette=True
- )'''
+# Analisi della fitness (Adjusted Rand Index)
+ari_score_exp1 = analisi_fitness(df_clustering_exp1, clusters_exp1)
 
-# --- Grafici ---
-# 1. Distribuzione delle regioni_erogazione per ogni cluster
-plot_regione_erogazione_distribution(
-    df_clustering_exp1, 
-    clusters_exp1, 
-    region_column='regione_erogazione', 
-    k_clusters=4
-)
-
-# 2. Composizione di ogni cluster
-plot_cluster_composition(
+# Calcola le statistiche dei cluster
+stats_clusters = calcola_statistiche_cluster(
     df_clustering_exp1,
     clusters_exp1,
     numerical_columns=numerical_columns_exp1,
-    categorical_columns=categorical_columns_exp1,
-    k_clusters=4
+    categorical_columns=categorical_columns_exp1
 )
 
-# 3. Grafico dei Silhouette Scores
-'''if sil_score_exp1 is not None:
-    # Silhouette Score già calcolato con Gower Distance
-    plot_silhouette_scores(
-        X_numeric=None,  # Non necessario perché già calcolato
-        clusters=clusters_exp1, 
-        silhouette_avg=sil_score_exp1
-    )'''
+# Crea una tabella riassuntiva delle caratteristiche dei cluster
+crea_tabella_riassuntiva(stats_clusters)
 
-# 4. Distribuzione di 'incremento_teleassistenza' per ogni cluster
+# Assegna etichette ai cluster (basate sulle caratteristiche distintive)
+etichette_cluster = assegnare_etichette_cluster(stats_clusters)
+
+# Aggiungi le etichette al DataFrame
+df_clustering_exp1['cluster_label'] = df_clustering_exp1['cluster'].map(etichette_cluster)
+
+# --- Grafici ---
+
+# 1. Visualizzazione delle variabili numeriche per cluster
+plot_variabili_numeriche(df_clustering_exp1, clusters_exp1, numerical_columns_exp1)
+
+# 2. Visualizzazione delle variabili categoriali per cluster (includendo 'regione_erogazione')
+plot_variabili_categoriali(
+    df_clustering_exp1,
+    clusters_exp1,
+    categorical_columns=categorical_columns_exp1,
+    additional_categorical=additional_columns,
+    top_n=10,
+    frequency_threshold=0.01
+)
+
+# 3. Distribuzione di 'incremento_teleassistenza' per ogni cluster
 plot_purity_incremento(
     df_clustering_exp1,
     clusters_exp1,
-    incremento_column='incremento_teleassistenza',
-    k_clusters=4
+    incremento_column='incremento_teleassistenza'
+)
+
+# 4. Visualizzazione delle variabili categoriali con le etichette dei cluster (includendo 'regione_erogazione')
+plot_variabili_categoriali_con_etichette(
+    df_clustering_exp1,
+    cluster_label_col='cluster_label',
+    categorical_columns=categorical_columns_exp1,
+    additional_categorical=additional_columns,
+    top_n=10,
+    frequency_threshold=0.01
 )
