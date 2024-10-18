@@ -58,7 +58,7 @@ def cerca_valore(df, valore='DIE'):
         print(f"Valore '{valore}' non trovato in nessuna colonna.")
     return colonne_con_valore
 
-def prepara_dati(df, numerical_columns, categorical_columns, additional_columns=[]):
+def prepara_dati(df, numerical_columns, categorical_columns, incremento_column, additional_columns=[]):
     """
     Prepara i dati per il clustering.
 
@@ -86,7 +86,7 @@ def prepara_dati(df, numerical_columns, categorical_columns, additional_columns=
     df_clustering[numerical_columns] = scaler.fit_transform(df_clustering[numerical_columns])
 
     # Rimuovi eventuali righe con valori mancanti
-    columns_to_keep = numerical_columns + categorical_columns + ['incremento_teleassistenza'] + additional_columns + [col + '_orig' for col in coordinate_cols if col in df_clustering.columns]
+    columns_to_keep = numerical_columns + categorical_columns + additional_columns + [incremento_column] + [col + '_orig' for col in coordinate_cols if col in df_clustering.columns]
     df_clustering = df_clustering[columns_to_keep].dropna()
 
     # Converti in array numpy
@@ -96,6 +96,7 @@ def prepara_dati(df, numerical_columns, categorical_columns, additional_columns=
     categorical_indices = list(range(len(numerical_columns), len(numerical_columns) + len(categorical_columns)))
 
     return X_matrix, categorical_indices, df_clustering
+
 
 # --- Funzioni di Clustering e Valutazione ---
 
@@ -120,7 +121,7 @@ def esegui_clustering(X_matrix, categorical_indices, k_clusters=4, gamma=None, n
     clusters = kproto.fit_predict(X_matrix, categorical=categorical_indices)
     return clusters, kproto
 
-def analisi_purezza(df_clustering, clusters):
+def analisi_purezza(df_clustering, clusters, incremento_column):
     """
     Analizza la purezza dei cluster.
     """
@@ -136,7 +137,7 @@ def analisi_purezza(df_clustering, clusters):
         cluster_data = df_clustering[df_clustering['cluster'] == cluster_label]
         cluster_size = len(cluster_data)
 
-        class_counts = cluster_data['incremento_teleassistenza'].value_counts()
+        class_counts = cluster_data[incremento_column].value_counts()
 
         if not class_counts.empty:
             dominant_class_count = class_counts.max()
@@ -158,26 +159,21 @@ def analisi_purezza(df_clustering, clusters):
 
     return overall_purity
 
-def analisi_fitness(df_clustering, clusters):
+
+def analisi_fitness(df_clustering, clusters, incremento_column):
     """
     Calcola l'Adjusted Rand Index per valutare la qualità del clustering.
-
-    Parametri:
-    - df_clustering: DataFrame dei dati clusterizzati.
-    - clusters: Array degli assegnamenti dei cluster.
-
-    Restituisce:
-    - ari_score: Adjusted Rand Index.
     """
     # Calcolo dell'Adjusted Rand Index
     print("\nCalcolo dell'Adjusted Rand Index:")
-    labels_true = df_clustering['incremento_teleassistenza'].astype('category').cat.codes
+    labels_true = df_clustering[incremento_column].astype('category').cat.codes
     labels_pred = clusters
 
     ari_score = adjusted_rand_score(labels_true, labels_pred)
     print(f"Adjusted Rand Index: {ari_score:.4f}")
 
     return ari_score
+
 
 # --- Funzioni per l'Analisi delle Caratteristiche dei Cluster ---
 
@@ -404,14 +400,9 @@ def raggruppa_categorie_rare(df, colonna, soglia=0.01):
     df[colonna] = np.where(df[colonna].isin(categorie_da_mantenere), df[colonna], 'Altre')
     return df
 
-def plot_purity_incremento(df_clustering, clusters, incremento_column='incremento_teleassistenza'):
+def plot_purity_incremento(df_clustering, clusters, incremento_column):
     """
     Crea un grafico a barre per ogni cluster mostrando la distribuzione di incremento_teleassistenza.
-
-    Parametri:
-    - df_clustering: DataFrame dei dati clusterizzati
-    - clusters: array degli assegnamenti dei cluster
-    - incremento_column: nome della colonna che contiene l'incremento di teleassistenza
     """
     # Aggiungi i cluster al DataFrame
     df_clustering['cluster'] = clusters
@@ -441,11 +432,18 @@ def plot_purity_incremento(df_clustering, clusters, incremento_column='increment
     plt.tight_layout()
     plt.show()
 
+
 # --- Integrazione nel Flusso Principale ---
 
 # Lettura del file Parquet
 filepath = './dataset_pulito.parquet'
 df = read_file_parquet(filepath)
+
+
+# Scegli la colonna di incremento da utilizzare
+#incremento_column = 'incremento_teleassistenza_semestre'  
+incremento_column = 'incremento_teleassistenza_quadrimestre'
+
 
 # Definisci il numero di cluster
 k_clusters = 4  # Modifica questo valore per i tuoi esperimenti
@@ -474,25 +472,30 @@ else:
     print("Il valore 'DIE' non è presente nel DataFrame.")
 
 # Assicurati che 'incremento_teleassistenza' sia presente e correttamente codificato
-df['incremento_teleassistenza'] = df['incremento_teleassistenza'].astype(str)
+df[incremento_column] = df[incremento_column].astype(str)
 
 # Assicurati che le colonne categoriali siano di tipo stringa
-df[categorical_columns_exp1 + additional_columns] = df[categorical_columns_exp1 + additional_columns].astype(str)
+df[categorical_columns_exp1 + additional_columns + [incremento_column]] = df[categorical_columns_exp1 + additional_columns + [incremento_column]].astype(str)
 
 # Assicurati che le colonne numeriche siano di tipo float
 df[numerical_columns_exp1] = df[numerical_columns_exp1].astype(float)
 
 # Raggruppa le categorie rare nelle variabili categoriali
-for col in categorical_columns_exp1 + additional_columns:
+for col in categorical_columns_exp1 + additional_columns + [incremento_column]:
     df = raggruppa_categorie_rare(df, colonna=col, soglia=0.01)
+
+
 
 # Prepara i dati per il clustering includendo le colonne aggiuntive
 X_matrix_exp1, categorical_indices_exp1, df_clustering_exp1 = prepara_dati(
     df,
     numerical_columns=numerical_columns_exp1,
     categorical_columns=categorical_columns_exp1,
+    incremento_column=incremento_column,
     additional_columns=additional_columns
 )
+
+
 
 # --- Calcolo di gamma con controllo ---
 
@@ -525,10 +528,12 @@ print(f"\nTempo totale di clustering: {elapsed_time:.2f} secondi")
 df_clustering_exp1['cluster'] = clusters_exp1
 
 # Analisi della purezza
-overall_purity_exp1 = analisi_purezza(df_clustering_exp1, clusters_exp1)
+overall_purity_exp1 = analisi_purezza(df_clustering_exp1, clusters_exp1, incremento_column)
+
 
 # Analisi della fitness (Adjusted Rand Index)
-ari_score_exp1 = analisi_fitness(df_clustering_exp1, clusters_exp1)
+ari_score_exp1 = analisi_fitness(df_clustering_exp1, clusters_exp1, incremento_column)
+
 
 # Calcola le statistiche dei cluster
 stats_clusters = calcola_statistiche_cluster(
@@ -562,12 +567,13 @@ plot_variabili_categoriali(
     frequency_threshold=0.01
 )
 
-# 3. Distribuzione di 'incremento_teleassistenza' per ogni cluster
+# Distribuzione di incremento per ogni cluster
 plot_purity_incremento(
     df_clustering_exp1,
     clusters_exp1,
-    incremento_column='incremento_teleassistenza'
+    incremento_column=incremento_column
 )
+
 
 # 4. Visualizzazione delle variabili categoriali con le etichette dei cluster (includendo 'regione_erogazione')
 plot_variabili_categoriali_con_etichette(

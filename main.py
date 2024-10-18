@@ -365,16 +365,61 @@ def conta_e_rimuovi_nan_colonna(df, colonna, rimuovi=False):
     
     return df
 
-# Funzione per calcolare l'incremento percentuale delle teleassistenze per semestre
-def calcola_incremento_teleassistenze(df):
-    # Raggruppare per semestre
-    grouped = df.groupby('semestre').size().reset_index(name='num_teleassistenze')
+def crea_colonna_semestre(df):
+    # Converti 'data_erogazione' in datetime se non lo è già
+    df['data_erogazione'] = pd.to_datetime(df['data_erogazione'])
+    
+    # Estrarre l'anno
+    df['anno'] = df['data_erogazione'].dt.year
+    
+    # Creare il semestre usando np.where per il controllo delle condizioni
+    df['semestre'] = np.where(df['data_erogazione'].dt.month <= 6, 'S1', 'S2')
+    
+    # Combinare anno e semestre in una nuova colonna 'semestre'
+    df['semestre'] = df['anno'].astype(str) + '-' + df['semestre']
+    
+    # Visualizzare i primi risultati
+    print(df[['data_erogazione', 'anno', 'semestre']].head())
+    print(df[['data_erogazione', 'anno', 'semestre']].tail())
+    
+    return df
 
-    # Calcolare l'incremento percentuale rispetto al semestre precedente
-    grouped['incremento'] = grouped['num_teleassistenze'].pct_change() * 100
+# Funzione per creare la colonna 'quadrimestre'
+def crea_colonna_quadrimestre(df):
+    # Converti 'data_erogazione' in datetime se non lo è già
+    df['data_erogazione'] = pd.to_datetime(df['data_erogazione'])
+    
+    # Estrarre l'anno
+    df['anno'] = df['data_erogazione'].dt.year
+    
+    # Creare il quadrimestre usando np.select per le condizioni
+    condizioni = [
+        (df['data_erogazione'].dt.month <= 4),
+        (df['data_erogazione'].dt.month > 4) & (df['data_erogazione'].dt.month <= 8),
+        (df['data_erogazione'].dt.month > 8)
+    ]
+    scelte = ['Q1', 'Q2', 'Q3']
+    df['quadrimestre'] = np.select(condizioni, scelte)
+    
+    # Combinare anno e quadrimestre in una nuova colonna 'quadrimestre'
+    df['quadrimestre'] = df['anno'].astype(str) + '-' + df['quadrimestre']
+    
+    # Visualizzare i primi e ultimi risultati
+    print(df[['data_erogazione', 'anno', 'quadrimestre']].head())
+    print(df[['data_erogazione', 'anno', 'quadrimestre']].tail())
+    
+    return df
 
-    # Riempiamo i valori NaN (per il primo semestre, non c'è incremento precedente) con 0
-    grouped['incremento'] = grouped['incremento'].fillna(0)
+# Funzione generalizzata per calcolare l'incremento delle teleassistenze
+def calcola_incremento_teleassistenze(df, periodo_colonna, incremento_colonna):
+    # Raggruppare per il periodo specificato
+    grouped = df.groupby(periodo_colonna).size().reset_index(name='num_teleassistenze')
+
+    # Calcolare l'incremento percentuale rispetto al periodo precedente
+    grouped[incremento_colonna] = grouped['num_teleassistenze'].pct_change() * 100
+
+    # Riempiamo i valori NaN (per il primo periodo, non c'è incremento precedente) con 0
+    grouped[incremento_colonna] = grouped[incremento_colonna].fillna(0)
 
     # Visualizza i risultati (prime righe)
     print(grouped.head())
@@ -382,45 +427,37 @@ def calcola_incremento_teleassistenze(df):
 
     return grouped
 
-    
-
-# Funzione aggiornata per classificare l'incremento per ogni semestre
-def classifica_incremento_per_semestre(df_grouped):
-    # Inizializziamo la colonna 'classificazione' come 'Stabile' di default
-    df_grouped['classificazione'] = 'Stabile'
+# Funzione generalizzata per classificare l'incremento per periodo
+def classifica_incremento_per_periodo(df_grouped, periodo_colonna, incremento_colonna, classificazione_colonna):
+    # Inizializziamo la colonna di classificazione come 'Stabile' di default
+    df_grouped[classificazione_colonna] = 'Stabile'
     
     # Classificazione per 'Decremento significativo'
-    df_grouped.loc[df_grouped['incremento'] < 0, 'classificazione'] = 'Decremento'
+    df_grouped.loc[df_grouped[incremento_colonna] < -5, classificazione_colonna] = 'Decremento'
     
     # Classificazione per 'Incremento moderato'
-    df_grouped.loc[(df_grouped['incremento'] > 0) & (df_grouped['incremento'] <= 40), 'classificazione'] = 'Incremento moderato'
+    df_grouped.loc[(df_grouped[incremento_colonna] > 5) & (df_grouped[incremento_colonna] <= 30), classificazione_colonna] = 'Incremento moderato'
     
     # Classificazione per 'Incremento alto'
-    df_grouped.loc[df_grouped['incremento'] > 40, 'classificazione'] = 'Incremento alto'
+    df_grouped.loc[df_grouped[incremento_colonna] > 30, classificazione_colonna] = 'Incremento alto'
     
     # Visualizza i risultati per conferma
-    print(df_grouped[['semestre', 'num_teleassistenze', 'incremento', 'classificazione']])
+    print(df_grouped[[periodo_colonna, 'num_teleassistenze', incremento_colonna, classificazione_colonna]])
     
     return df_grouped
 
-
-
-
-
 # Funzione per etichettare l'incremento per record nel DataFrame completo
-def etichetta_incremento_per_record(df, df_incremento):
-    # Uniamo df e df_incremento sulla colonna 'semestre'
-    df = df.merge(df_incremento[['semestre', 'classificazione']], on='semestre', how='left')
+def etichetta_incremento_per_record(df, df_incremento, periodo_colonna, classificazione_colonna, incremento_label):
+    # Uniamo df e df_incremento sulla colonna del periodo (es. 'semestre' o 'quadrimestre')
+    df = df.merge(df_incremento[[periodo_colonna, classificazione_colonna]], on=periodo_colonna, how='left')
     
-    # Rinominiamo la colonna 'classificazione' in 'incremento_teleassistenza'
-    df.rename(columns={'classificazione': 'incremento_teleassistenza'}, inplace=True)
+    # Rinominiamo la colonna di classificazione nel nome desiderato
+    df.rename(columns={classificazione_colonna: incremento_label}, inplace=True)
     
     # Visualizza un campione del risultato
-    print(df[['semestre', 'incremento_teleassistenza']].head())
+    print(df[[periodo_colonna, incremento_label]].head())
     
     return df
-
-# ... (tutte le altre funzioni e codice)
 
 # Funzione per salvare il DataFrame in un file Parquet
 def salva_dataframe(df, nome_file):
@@ -538,43 +575,55 @@ if __name__ == "__main__":
     df = replace_city_columns_with_coordinates(df, ['provincia_residenza','comune_residenza', 'provincia_erogazione'], coordinates_dict)
 
     print(df.columns)
-    # Crea la colonna 'semestre' basata su 'data_erogazione'
-    df = crea_colonna_semestre(df)
 
     # Controlla i valori NaN nella colonna 'provincia_erogazione_lng' e 'provincia_erogazione_lat'
     conta_nan_colonna(df, 'provincia_erogazione_lng')
     conta_nan_colonna(df, 'provincia_erogazione_lat')
 
-    # Calcola l'incremento percentuale delle teleassistenze per semestre
-    df_incremento = calcola_incremento_teleassistenze(df)
+    # Creare entrambe le colonne 'semestre' e 'quadrimestre'
+    df = crea_colonna_semestre(df)
+    df = crea_colonna_quadrimestre(df)
 
-    # Visualizza i primi 5 risultati
-    print(df_incremento.head())
-    # Visualizza gli ultimi 5 risultati
-    print(df_incremento.tail())
+    # Controlla i valori NaN nelle colonne del periodo
+    conta_nan_colonna(df, 'semestre')
+    conta_nan_colonna(df, 'quadrimestre')
 
-    # Classifica l'incremento per ogni semestre
-    df_incremento = classifica_incremento_per_semestre(df_incremento)
+    # Calcola l'incremento percentuale delle teleassistenze per 'semestre'
+    df_incremento_semestre = calcola_incremento_teleassistenze(df, 'semestre', 'incremento_semestre')
 
+    # Classifica l'incremento per ogni 'semestre'
+    df_incremento_semestre = classifica_incremento_per_periodo(df_incremento_semestre, 'semestre', 'incremento_semestre', 'classificazione_semestre')
 
+    # Calcola l'incremento percentuale delle teleassistenze per 'quadrimestre'
+    df_incremento_quadrimestre = calcola_incremento_teleassistenze(df, 'quadrimestre', 'incremento_quadrimestre')
+
+    # Classifica l'incremento per ogni 'quadrimestre'
+    df_incremento_quadrimestre = classifica_incremento_per_periodo(df_incremento_quadrimestre, 'quadrimestre', 'incremento_quadrimestre', 'classificazione_quadrimestre')
+
+    # Etichetta l'incremento per record nel DataFrame completo per 'semestre'
+    df = etichetta_incremento_per_record(df, df_incremento_semestre, 'semestre', 'classificazione_semestre', 'incremento_teleassistenza_semestre')
+
+    # Etichetta l'incremento per record nel DataFrame completo per 'quadrimestre'
+    df = etichetta_incremento_per_record(df, df_incremento_quadrimestre, 'quadrimestre', 'classificazione_quadrimestre', 'incremento_teleassistenza_quadrimestre')
+
+    # Seleziona le colonne, includendo entrambe le colonne del periodo e le rispettive classificazioni
     selected_columns = [
         'id_prenotazione', 'asl_residenza', 'descrizione_attivita',
         'asl_erogazione', 'struttura_erogazione',
-        'tipologia_struttura_erogazione', 'regione','tipologia_professionista_sanitario',
+        'tipologia_struttura_erogazione', 'regione_erogazione', 'tipologia_professionista_sanitario',
         'data_erogazione', 'età', 'durata_assistenza', 'sesso_bool', 'attesa_assistenza',
         'provincia_residenza_lat', 'provincia_residenza_lng', 'comune_residenza_lat',
         'comune_residenza_lng', 'provincia_erogazione_lat', 'provincia_erogazione_lng',
-        'semestre'  
+        'semestre', 'incremento_teleassistenza_semestre',
+        'quadrimestre', 'incremento_teleassistenza_quadrimestre'
     ]
 
     df_feature_selezionate = df[selected_columns]
 
-    # Etichetta l'incremento per record nel DataFrame completo
-    df_feature_selezionate = etichetta_incremento_per_record(df_feature_selezionate, df_incremento)
+    # Salva il DataFrame pulito
+    path_dataset_pulito = './dataset_pulito.parquet'
+    salva_dataframe(df_feature_selezionate, path_dataset_pulito)
 
-    path_dataset_pulito='./dataset_pulito.parquet'
-
-    salva_dataframe(df_feature_selezionate,path_dataset_pulito)
     # Visualizza i primi 5 risultati
     print(df_feature_selezionate.head())
     # Visualizza gli ultimi 5 risultati
