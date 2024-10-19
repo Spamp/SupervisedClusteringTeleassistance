@@ -1,5 +1,6 @@
 import matplotlib.pyplot as plt
 from kmodes.kprototypes import KPrototypes
+from sklearn.cluster import KMeans
 from sklearn.preprocessing import StandardScaler
 import pandas as pd
 
@@ -32,28 +33,38 @@ def prepara_dati(df, numerical_columns, categorical_columns, incremento_column):
 
     return X_matrix, categorical_indices, df_clustering
 
-# Funzione per eseguire il metodo del gomito per K-Prototypes
+# Funzione per eseguire il metodo del gomito per K-Prototypes o K-Means
 def metodo_elbow(df, numerical_columns, categorical_columns, incremento_column, k_min=2, k_max=5):
     X_matrix, categorical_indices, df_clustering = prepara_dati(
         df, numerical_columns, categorical_columns, incremento_column)
 
-    gamma_value = len(numerical_columns) / len(categorical_columns) if len(categorical_columns) > 0 else 0.5
-
     costi = []
     K_range = range(k_min, k_max + 1)
 
-    for k in K_range:
-        print(f"Eseguendo K-Prototypes con k = {k}...")
-        kproto = KPrototypes(n_clusters=k, init='Cao', verbose=1, random_state=42, gamma=gamma_value)
-        kproto.fit_predict(X_matrix, categorical=categorical_indices)
-        costi.append(kproto.cost_)
-        print(f"Valore del costo per k = {k}: {kproto.cost_}\n")
+    # Se ci sono colonne categoriali, utilizza K-Prototypes, altrimenti K-Means
+    if len(categorical_columns) > 0:
+        gamma_value = len(numerical_columns) / len(categorical_columns) if len(categorical_columns) > 0 else 0.5
+        for k in K_range:
+            print(f"Eseguendo K-Prototypes con k = {k}...")
+            kproto = KPrototypes(n_clusters=k, init='Cao', verbose=1, random_state=42, gamma=gamma_value)
+            kproto.fit_predict(X_matrix, categorical=categorical_indices)
+            costi.append(kproto.cost_)
+            print(f"Valore del costo per k = {k}: {kproto.cost_}\n")
+    else:
+        # Nessuna colonna categoriale, esegui K-Means
+        for k in K_range:
+            print(f"Eseguendo K-Means con k = {k}...")
+            kmeans = KMeans(n_clusters=k, random_state=42)
+            kmeans.fit(X_matrix)
+            costi.append(kmeans.inertia_)  # inertia_ è il "costo" in K-Means
+            print(f"Valore del costo per k = {k}: {kmeans.inertia_}\n")
 
+    # Plot del costo in funzione di k
     plt.figure(figsize=(8, 5))
     plt.plot(K_range, costi, 'bo-', markersize=8)
     plt.xlabel('Numero di Cluster (k)')
     plt.ylabel('Costo (ncost)')
-    plt.title('Metodo del Gomito per K-Prototypes')
+    plt.title('Metodo del Gomito per K-Prototypes o K-Means')
     plt.grid(True)
     plt.show()
 
@@ -79,9 +90,9 @@ df = read_file_parquet(filepath)
 # Definizione degli esperimenti (colonne numeriche e categoriali)
 esperimenti = {
     # 'esperimento_1': (['provincia_erogazione_lat', 'provincia_erogazione_lng'], ['tipologia_professionista_sanitario', 'descrizione_attivita']),
-    'esperimento_2': (['attesa_assistenza'], ['struttura_erogazione', 'tipologia_professionista_sanitario', 'asl_erogazione']),
-    'esperimento_3': (['età'], ['tipologia_professionista_sanitario', 'descrizione_attivita']),
-    'esperimento_4': (['attesa_assistenza', 'durata_assistenza'], []),
+    # 'esperimento_2': (['attesa_assistenza'], ['struttura_erogazione', 'tipologia_professionista_sanitario', 'asl_erogazione']),
+    # 'esperimento_3': (['età'], ['tipologia_professionista_sanitario', 'descrizione_attivita']),
+    'esperimento_4': (['attesa_assistenza', 'durata_assistenza'], []),  # Solo variabili numeriche, usa K-Means
     'esperimento_5': (['attesa_assistenza'], ['descrizione_attivita'])
 }
 
