@@ -563,7 +563,7 @@ if __name__ == "__main__":
 
     df= calcola_attesa_assistenza(df)
 
-    coordinates_file = './coordinate_dataset.json'
+    coordinates_file = './pija_la_posizione/coordinate_dataset.json'
 
     # Carica il dizionario delle coordinate
     coordinates_dict = load_coordinates(coordinates_file)
