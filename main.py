@@ -482,7 +482,7 @@ def salva_dataframe(df, nome_file):
 
 
 if __name__ == "__main__":
-    filepath = "./challenge_campus_biomedico_2024.parquet"
+    filepath = "./pija_la_posizione/challenge_campus_biomedico_2024.parquet"
     
     # Leggi il file Parquet
     df = read_file_parquet(filepath)
