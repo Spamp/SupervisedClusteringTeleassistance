@@ -61,7 +61,7 @@ def cerca_valore(df, valore='DIE'):
 def prepara_dati(df, numerical_columns, categorical_columns, incremento_column, additional_columns=[]):
     """
     Prepara i dati per il clustering.
-
+    
     Parametri aggiuntivi:
     - additional_columns: lista di colonne aggiuntive da mantenere nel DataFrame dei cluster (non incluse in X_matrix)
     """
@@ -81,21 +81,27 @@ def prepara_dati(df, numerical_columns, categorical_columns, incremento_column, 
         if col in df_clustering.columns:
             df_clustering[col + '_orig'] = df_clustering[col]
 
+    # Salva le altre variabili numeriche originali prima della standardizzazione
+    other_numerical_cols = [col for col in numerical_columns if col not in coordinate_cols]
+    for col in other_numerical_cols:
+        df_clustering[col + '_orig'] = df_clustering[col]
+
     # Standardizza le variabili numeriche
     scaler = StandardScaler()
     df_clustering[numerical_columns] = scaler.fit_transform(df_clustering[numerical_columns])
 
     # Rimuovi eventuali righe con valori mancanti
-    columns_to_keep = numerical_columns + categorical_columns + additional_columns + [incremento_column] + [col + '_orig' for col in coordinate_cols if col in df_clustering.columns]
+    columns_to_keep = numerical_columns + categorical_columns + additional_columns + [incremento_column] + [col + '_orig' for col in coordinate_cols + other_numerical_cols if col in df_clustering.columns]
     df_clustering = df_clustering[columns_to_keep].dropna()
 
-    # Converti in array numpy
+    # Converti in array numpy per il clustering (solo le colonne standardizzate e categoriali)
     X_matrix = df_clustering[numerical_columns + categorical_columns].values
 
     # Calcola gli indici delle colonne categoriali rispetto a X_matrix
     categorical_indices = list(range(len(numerical_columns), len(numerical_columns) + len(categorical_columns)))
 
     return X_matrix, categorical_indices, df_clustering
+
 
 
 # --- Funzioni di Clustering e Valutazione ---
@@ -275,9 +281,12 @@ def plot_variabili_numeriche(df_clustering, clusters, numerical_columns):
     coordinate_cols = ['provincia_erogazione_lat', 'provincia_erogazione_lng']
     coordinate_cols_orig = ['provincia_erogazione_lat_orig', 'provincia_erogazione_lng_orig']
 
+    # Identifica le altre variabili numeriche originali
+    other_numerical_cols_orig = [col + '_orig' for col in numerical_columns if col not in coordinate_cols]
+
     # Verifica se le coordinate sono presenti nelle variabili numeriche
     if all(col in numerical_columns for col in coordinate_cols):
-        # Scatter plot per le coordinate
+        # Scatter plot per le coordinate utilizzando i dati originali
         plt.figure(figsize=(10, 8))
         sns.scatterplot(
             x='provincia_erogazione_lng_orig',
@@ -292,15 +301,24 @@ def plot_variabili_numeriche(df_clustering, clusters, numerical_columns):
         plt.ylabel('Latitudine')
         plt.legend(title='Cluster')
         plt.show()
-        # Rimuovi le coordinate dalle variabili numeriche da plottare come boxplot
-        numerical_columns = [col for col in numerical_columns if col not in coordinate_cols]
 
-    # Boxplot per le altre variabili numeriche
-    for col in numerical_columns:
-        plt.figure(figsize=(10, 6))
-        sns.boxplot(x='cluster', y=col, data=df_clustering, order=sorted(df_clustering['cluster'].unique()))
-        plt.title(f'Distribuzione di {col} per Cluster')
-        plt.show()
+        # Rimuovi le coordinate dalle variabili numeriche da plottare come boxplot
+        numerical_columns_to_plot = [col for col in numerical_columns if col not in coordinate_cols]
+    else:
+        numerical_columns_to_plot = numerical_columns.copy()
+
+    # Boxplot per le altre variabili numeriche utilizzando i valori originali
+    for col in numerical_columns_to_plot:
+        col_orig = col + '_orig'
+        if col_orig in df_clustering.columns:
+            plt.figure(figsize=(10, 6))
+            sns.boxplot(x='cluster', y=col_orig, data=df_clustering, order=sorted(df_clustering['cluster'].unique()))
+            plt.title(f'Distribuzione di {col} (Originale) per Cluster')
+            plt.xlabel('Cluster')
+            plt.ylabel(col.capitalize())
+            plt.show()
+        else:
+            print(f"Colonna originale '{col_orig}' non trovata nel DataFrame.")
 
 def plot_variabili_categoriali(df_clustering, clusters, categorical_columns, additional_categorical=[], top_n=10, frequency_threshold=0.01):
     """
@@ -449,10 +467,9 @@ incremento_column = 'incremento_teleassistenza_quadrimestre'
 k_clusters = 4  # Modifica questo valore per i tuoi esperimenti
 
 # Definisci le feature per il clustering
-numerical_columns_exp1 = ['provincia_erogazione_lat', 'provincia_erogazione_lng']
+numerical_columns_exp1 = ['età']
 categorical_columns_exp1 = [
     'tipologia_professionista_sanitario',
-    'descrizione_attivita',
     ]
 
 additional_columns = ['regione_erogazione']
@@ -517,7 +534,7 @@ clusters_exp1, kproto_exp1 = esegui_clustering(
     categorical_indices_exp1,
     k_clusters=k_clusters,
     gamma=gamma_value_exp1,
-    n_init=1,        # Numero di run
+    n_init=4,        # Numero di run
     max_iter=50      # Numero massimo di iterazioni per run
 )
 end_time = time.time()
