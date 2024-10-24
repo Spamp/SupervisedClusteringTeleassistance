@@ -18,14 +18,14 @@ You can also modify some settings and parameters:
   Similary, in the line 471 insert in the specific space tha categorical features tha you want to use (for example 'tipologia_professionista_sanitario').
   You can find all the features that are available in 'main_organizzato.py' in the line 139 and following.
 
-  - k (number of centroids):
+- k (number of centroids):
     You can modify the value of k in 'clustering.py' in the line 467
 
-  - number of runs:
+- number of runs:
     You can modify this value in 'clustering.py' in the line 537
 
-  -max number of iterations:
-  You can modify this value in 'clustering.py' in the line 538
+- max number of iterations:
+    You can modify this value in 'clustering.py' in the line 538
   
 
 
