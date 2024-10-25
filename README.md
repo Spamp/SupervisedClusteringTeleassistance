@@ -45,8 +45,8 @@ Repository Structure
 
 bash
 
-clustering-project/
-├── main_organizzato.py          # Preprocessing and feature engineering
+SupervisedClusteringTeleassistance/
+├── main.py                      # Preprocessing and feature engineering
 ├── elbow.py                     # Determine optimal number of clusters
 ├── clustering.py                # Perform clustering and analysis
 ├── coordinates/                 # Scripts and data for city coordinates
@@ -64,7 +64,7 @@ Prepare the dataset by preprocessing and feature engineering.
 
 bash
 
-python main_organizzato.py
+python main.py
 
 Output: dataset_pulito.parquet
 2. Determine Optimal Number of Clusters (Elbow Method) (elbow.py)
