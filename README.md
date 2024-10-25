@@ -176,5 +176,5 @@ The clustering.py script allows you to:
 
 Contact
 
-For any questions or support, please contact antonio.spampinato@alcampus.it or edoardo.caliano@alcampus.it or riccardopolacchi@alcampus.it.
+For any questions or support, please contact antonio.spampinato@alcampus.it or edoardo.caliano@alcampus.it or riccardo.polacchi@alcampus.it.
 
