@@ -30,8 +30,8 @@ Steps
 
     bash
 
-git clone https://github.com/your-username/clustering-project.git
-cd clustering-project
+git clone https://github.com/Spamp/SupervisedClusteringTeleassistance.git
+cd SupervisedClusteringTeleassistance
 
 Install Required Libraries
 
@@ -176,5 +176,5 @@ The clustering.py script allows you to:
 
 Contact
 
-For any questions or support, please contact your-email@example.com.
+For any questions or support, please contact antonio.spampinato@alcampus.it or edoardo.caliano@alcampus.it or riccardopolacchi@alcampus.it.
 
