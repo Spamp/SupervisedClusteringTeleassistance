@@ -55,7 +55,7 @@ def crea_colonna_quadrimestre(df):
         (df['data_erogazione'].dt.month > 8)
     ]
     scelte = ['Q1', 'Q2', 'Q3']
-    df['quadrimestre'] = np.select(condizioni, scelte)
+    df['quadrimestre'] = np.select(condizioni, scelte, default='N/A')
     df['quadrimestre'] = df['anno'].astype(str) + '-' + df['quadrimestre']
 
     print(df[['data_erogazione', 'anno', 'quadrimestre']].head())
