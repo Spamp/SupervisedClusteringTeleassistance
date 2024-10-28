@@ -43,19 +43,6 @@ bash
 
 Repository Structure
 
-bash
-
-SupervisedClusteringTeleassistance/
-├── main.py                      # Preprocessing and feature engineering
-├── elbow.py                     # Determine optimal number of clusters
-├── clustering.py                # Perform clustering and analysis
-├── coordinates/                 # Scripts and data for city coordinates
-│   ├── generate_coordinates.py  # Generate coordinates.json
-│   └── coordinates.json         # JSON file with city coordinates
-├── dataset.parquet              # Original dataset
-├── dataset_pulito.parquet       # Preprocessed dataset
-├── requirements.txt             # Python dependencies
-└── README.md                    # This file
 
 Usage
 1. Preprocessing and Feature Engineering (main_organizzato.py)
