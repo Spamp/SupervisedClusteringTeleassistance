@@ -30,8 +30,8 @@ Steps
 
     bash
 
-git clone https://github.com/your-username/clustering-project.git
-cd clustering-project
+git clone https://github.com/Spamp/SupervisedClusteringTeleassistance.git
+cd SupervisedClusteringTeleassistance
 
 Install Required Libraries
 
@@ -41,6 +41,21 @@ bash
 
     pip install -r requirements.txt
 
+Repository Structure
+
+bash
+
+SupervisedClusteringTeleassistance/
+├── main.py                      # Preprocessing and feature engineering
+├── elbow.py                     # Determine optimal number of clusters
+├── clustering.py                # Perform clustering and analysis
+├── coordinates/                 # Scripts and data for city coordinates
+│   ├── generate_coordinates.py  # Generate coordinates.json
+│   └── coordinates.json         # JSON file with city coordinates
+├── dataset.parquet              # Original dataset
+├── dataset_pulito.parquet       # Preprocessed dataset
+├── requirements.txt             # Python dependencies
+└── README.md                    # This file
 
 Usage
 1. Preprocessing and Feature Engineering (main_organizzato.py)
@@ -49,7 +64,7 @@ Prepare the dataset by preprocessing and feature engineering.
 
 bash
 
-python main_organizzato.py
+python main.py
 
 Output: dataset_pulito.parquet
 2. Determine Optimal Number of Clusters (Elbow Method) (elbow.py)
@@ -161,5 +176,5 @@ The clustering.py script allows you to:
 
 Contact
 
-For any questions or support, please contact your-email@example.com.
+For any questions or support, please contact antonio.spampinato@alcampus.it or edoardo.caliano@alcampus.it or riccardo.polacchi@alcampus.it.
 
